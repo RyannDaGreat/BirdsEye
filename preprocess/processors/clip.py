@@ -163,19 +163,21 @@ def _gpu_worker_fn(args):
         for k, (si, fi) in enumerate(valid_indices):
             emb_map[(si, fi)] = all_embs[k]
 
-        # Save per-sample artifacts
+        # Save per-sample artifacts (skip zero-vector fallbacks from failed images)
         for j, s in enumerate(chunk):
             sd = s["sample_dir"]
-            embeddings = []
+            valid_embeddings = []
             for frame_idx in range(3):
-                emb = emb_map.get((j, frame_idx), np.zeros(CLIP_DIM, dtype=np.float16))
-                embeddings.append(emb)
-                np.save(os.path.join(sd, frame_files[frame_idx]), emb)
+                if (j, frame_idx) in emb_map:
+                    emb = emb_map[(j, frame_idx)]
+                    np.save(os.path.join(sd, frame_files[frame_idx]), emb)
+                    valid_embeddings.append(emb)
 
-            stacked = np.stack([e.astype(np.float32) for e in embeddings])
-            clip_std = mean_pairwise_cosine_distance(stacked)
-            with open(os.path.join(sd, "clip_std.json"), "w") as f:
-                json.dump({"clip_std": clip_std}, f)
+            if valid_embeddings:
+                stacked = np.stack([e.astype(np.float32) for e in valid_embeddings])
+                clip_std = mean_pairwise_cosine_distance(stacked)
+                with open(os.path.join(sd, "clip_std.json"), "w") as f:
+                    json.dump({"clip_std": clip_std}, f)
 
         done += len(chunk)
         log(f"{done}/{len(samples)} samples ({done * 100 // len(samples)}%)")
