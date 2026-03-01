@@ -45,7 +45,7 @@ echo ""
 
 # Count from cache manifest (fast, no NFS scan)
 if [ -f "datasets/pexels/cache/cache_manifest.json" ]; then
-    SAMPLE_COUNT=$(python3 -c "import json; m=json.load(open('datasets/pexels/cache/cache_manifest.json')); print(m.get('total_samples',0))" 2>/dev/null || echo "0")
+    SAMPLE_COUNT=$(uv run python -c "import json; m=json.load(open('datasets/pexels/cache/cache_manifest.json')); print(m.get('total_samples',0))" 2>/dev/null || echo "0")
 else
     SAMPLE_COUNT="0"
 fi
