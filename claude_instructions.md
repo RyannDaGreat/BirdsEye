@@ -1144,6 +1144,7 @@ Never prioritize security work in this project.
 
 **Skipped items** (not worth the code):
 - B3 (export all endpoint) — adds a whole new API endpoint for a rare operation. Not needed.
+- B7 (getsize FUSE crash) — hypothetical. Never actually observed this crash. Skip for now.
 - D2 (concurrent aggregation lock) — `fcntl.flock()` is unreliable on NFS/FUSE (may silently
   not lock, or hang forever). Just don't run two aggregators simultaneously. Add a comment.
 - B6 (underscore split) — only affects dataset names containing underscores. We only have `pexels`.
@@ -1220,11 +1221,61 @@ Never prioritize security work in this project.
   export const searchClip = (d, q, p) => searchWithEndpoint('clip', d, q, p);
   ```
 
-**R4 — CLIP_MODEL defined in 2 files**
+**R4 — CLIP_MODEL duplicated + clip_encoder.py breaks plugin isolation**
 - `server/clip_encoder.py:12`: `CLIP_MODEL = "openai/clip-vit-base-patch32"`
 - `preprocess/processors/clip.py:22`: `CLIP_MODEL = "openai/clip-vit-base-patch32"`
-- Fix: Move constant to `preprocess/video_utils.py` (shared utils, imported by both server
-  and preprocess). Both files import from there. Single source of truth.
+- Deeper problem: `server/clip_encoder.py` exists as a standalone file that hardcodes CLIP
+  knowledge outside the CLIP plugin. This breaks plugin isolation — all CLIP knowledge should
+  live in `preprocess/processors/clip.py` and nowhere else. The server shouldn't mention CLIP
+  specifically; it should generically discover which embedding processors provide text encoders.
+- Why the server needs text encoding: at search time, the user's text query must be encoded
+  into the same embedding space as the pre-computed image embeddings. Currently only CLIP,
+  but future embedding types will be added (VideoCLIP, Gemini text embeddings, etc.).
+- Fix: Make text encoding part of the processor plugin contract.
+  1. Add optional `embedding_space` dict and `encode_text()` staticmethod to `Processor` base class:
+     ```python
+     class Processor(ABC):
+         # ... existing ...
+         embedding_space: dict = None  # Optional: {prefix, dim, model, description}
+
+         @staticmethod
+         def encode_text(query):
+             """Override to provide text-to-embedding for search. Returns (D,) ndarray or None."""
+             return None
+     ```
+  2. Move `clip_encoder.py`'s lazy-loading text encoder into `ClipProcessor.encode_text()`:
+     ```python
+     class ClipProcessor(Processor):
+         name = "clip"
+         embedding_space = {
+             "prefix": "clip",
+             "dim": 512,
+             "model": "openai/clip-vit-base-patch32",
+             "description": "CLIP ViT-B/32 cosine similarity",
+         }
+
+         @staticmethod
+         def encode_text(query):
+             """Encode text query into CLIP embedding space. Lazy-loads model on first call."""
+             # ... the code currently in clip_encoder.py ...
+     ```
+  3. Server discovers text encoders generically at startup:
+     ```python
+     text_encoders = {}
+     for name, proc_cls in discover_processors().items():
+         if proc_cls.embedding_space and proc_cls.encode_text is not Processor.encode_text:
+             prefix = proc_cls.embedding_space["prefix"]
+             text_encoders[prefix] = proc_cls.encode_text
+     ```
+  4. Search routes use `text_encoders[index_name](query)` instead of `encode_text(query)`.
+  5. Delete `server/clip_encoder.py`. `CLIP_MODEL` stays in `clip.py` only.
+  When adding a new embedding type (e.g., VideoCLIP), just write a new processor with
+  `embedding_space` and `encode_text`. The server picks it up automatically — no new routes,
+  no new files, no edits to app.py.
+- Implementation note: CommonSource (`libs/CommonSource`) has a CLIP module with lazy-loading
+  text/image encoding. Check if it can be reused for `encode_text()` before reimplementing.
+  If CommonSource's API is suitable, `ClipProcessor.encode_text` can delegate to it.
+  If not (wrong model, missing features), implement directly in the processor.
 
 **R5 — L2 normalization repeated 4x**
 - Verified 4 occurrences in `server/`:
@@ -1312,20 +1363,6 @@ Never prioritize security work in this project.
           ...
   ```
 
-**B7 — os.path.getsize crashes on FUSE** (3 lines)
-- File: `preprocess/processors/ingest.py:331`
-- Problem: `os.path.getsize(entry["source_path"])` raises `OSError` if the FUSE/NFS mount is
-  down or the file disappeared. Kills the entire ingest worker. This is a known transient
-  condition on our S3/FUSE storage — not papering over ignorance.
-- Fix:
-  ```python
-  try:
-      proxy_meta["file_size_mb"] = round(os.path.getsize(entry["source_path"]) / (1024 * 1024), 2)
-  except OSError as e:
-      print(f"    WARNING: getsize failed for {entry['video_name']}: {e}")
-      proxy_meta["file_size_mb"] = None
-  ```
-
 **D5 — Zero vectors pollute FAISS index** (2 lines)
 - File: `preprocess/processors/clip.py:173-175`
 - Problem: When an image fails to load, `_load_image` returns None, so it's excluded from
@@ -1342,69 +1379,85 @@ Never prioritize security work in this project.
 
 #### Step 4: Atomic writes (prevents cache corruption on crash)
 
-**D1 — Non-atomic FAISS/npz writes in aggregator**
-- `aggregator.py:245`: `np.savez_compressed(emb_path, embeddings=all_embs)` — direct write
-- `aggregator.py:252`: `faiss.write_index(index, index_path)` — direct write
-- If process crashes mid-write, cache file is half-written garbage. Server loads it on boot.
-- Fix: Add to `preprocess/video_utils.py` (alongside existing `save_json_atomic`):
-  ```python
-  def save_npz_atomic(path, **arrays):
-      """Atomic npz save: temp file + rename. Safe on NFS."""
-      dir_name = os.path.dirname(path) or "."
-      os.makedirs(dir_name, exist_ok=True)
-      fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp.npz")
-      os.close(fd)
-      try:
-          np.savez_compressed(tmp, **arrays)
-          os.rename(tmp, path)
-      except Exception:
-          if os.path.exists(tmp):
-              os.unlink(tmp)
-          raise
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! CRITICAL: SAME-MOUNT REQUIREMENT FOR ATOMIC WRITES                         !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  def save_faiss_atomic(index, path):
-      """Atomic FAISS index save: temp file + rename. Safe on NFS."""
-      import faiss
-      dir_name = os.path.dirname(path) or "."
-      os.makedirs(dir_name, exist_ok=True)
-      fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp.faiss")
-      os.close(fd)
-      try:
-          faiss.write_index(index, tmp)
-          os.rename(tmp, path)
-      except Exception:
-          if os.path.exists(tmp):
-              os.unlink(tmp)
-          raise
-  ```
-  Replace the two direct writes in aggregator.py with these.
+`os.rename()` is only atomic when source and dest are on the same filesystem.
+If the temp file is on `/tmp` (local disk) but the target is on NFS, the rename
+becomes a copy+delete — NOT atomic. The temp file MUST be created in the same
+directory as the target file. This is why `tempfile.mkstemp(dir=dir_name)` passes
+the target's directory. NEVER use `tempfile.mkstemp()` without `dir=` for atomic
+writes. The existing `save_json_atomic` already does this correctly.
+
+**D1 + D6 — Abstract the atomic write pattern**
+
+The existing `save_json_atomic` in `video_utils.py` and the new `save_npz_atomic`,
+`save_faiss_atomic`, `save_npy_atomic` all share identical boilerplate: mkstemp in same
+dir, write to tmp, rename, cleanup on exception. Abstract to one generic helper:
+
+```python
+def atomic_write(path, writer_fn, suffix=".tmp"):
+    """
+    Atomic file write: create temp in same directory, write, rename.
+    writer_fn(tmp_path) performs the actual write. os.rename is atomic on
+    POSIX when source and dest are on the same filesystem — which is guaranteed
+    because mkstemp uses the same directory as the target.
+
+    NEVER call tempfile.mkstemp() without dir= for this pattern.
+    """
+    dir_name = os.path.dirname(path) or "."
+    os.makedirs(dir_name, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=suffix)
+    os.close(fd)
+    try:
+        writer_fn(tmp)
+        os.rename(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+```
+
+Then all specific savers become thin wrappers:
+
+```python
+def save_json_atomic(data, path):
+    """Atomic JSON save."""
+    def write(tmp):
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+    atomic_write(path, write)
+
+def save_npy_atomic(array, path):
+    """Atomic numpy .npy save."""
+    atomic_write(path, lambda tmp: np.save(tmp, array), suffix=".tmp.npy")
+
+def save_npz_atomic(path, **arrays):
+    """Atomic numpy .npz save."""
+    atomic_write(path, lambda tmp: np.savez_compressed(tmp, **arrays), suffix=".tmp.npz")
+
+def save_faiss_atomic(index, path):
+    """Atomic FAISS index save."""
+    import faiss
+    atomic_write(path, lambda tmp: faiss.write_index(index, tmp), suffix=".tmp.faiss")
+```
+
+**D1 — Non-atomic FAISS/npz writes in aggregator**
+- `aggregator.py:245`: `np.savez_compressed(emb_path, ...)` → `save_npz_atomic(emb_path, embeddings=all_embs)`
+- `aggregator.py:252`: `faiss.write_index(index, index_path)` → `save_faiss_atomic(index, index_path)`
 
 **D6 — Per-sample writes non-atomic in ALL processors**
-- Verified 6 non-atomic writes across the codebase. Zero processors use `save_json_atomic`:
+- Verified 6 non-atomic writes. Zero processors currently use `save_json_atomic`:
   1. `raft_flow.py:133` — `json.dump(stats, f)` for `flow_stats.json`
   2. `clip.py:180` — `json.dump({"clip_std": clip_std}, f)` for `clip_std.json`
   3. `phash.py:50` — `json.dump(stats, f)` for `phash_stats.json`
   4. `base.py:154` — `json.dump({...}, f)` for `origins.json`
   5. `ingest.py:334` — `json.dump(proxy_meta, f)` for `metadata.json`
   6. `clip.py:175` — `np.save(...)` for clip embedding .npy files
-- Fix: Replace all 5 `json.dump` sites with `save_json_atomic(data, path)` (already exists
-  in video_utils.py, just needs importing). Add `save_npy_atomic(array, path)` to video_utils.py
-  for the .npy write:
-  ```python
-  def save_npy_atomic(array, path):
-      """Atomic numpy save: temp file + rename. Safe on NFS."""
-      dir_name = os.path.dirname(path) or "."
-      os.makedirs(dir_name, exist_ok=True)
-      fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp.npy")
-      os.close(fd)
-      try:
-          np.save(tmp, array)
-          os.rename(tmp, path)
-      except Exception:
-          if os.path.exists(tmp):
-              os.unlink(tmp)
-          raise
-  ```
+- Fix: Replace all 5 `json.dump` sites with `save_json_atomic(data, path)`.
+  Replace the `np.save` with `save_npy_atomic(array, path)`.
+  Import from `video_utils` in each processor file.
 
 #### Step 5: Aggregator correctness
 
