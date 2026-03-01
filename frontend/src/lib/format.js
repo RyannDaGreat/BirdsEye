@@ -1,0 +1,114 @@
+/**
+ * Shared formatting functions. All pure.
+ */
+
+/**
+ * Format a number for display: integers stay whole, floats get fixed decimals.
+ * Pure function.
+ */
+export function formatNumber(val, decimals = 2) {
+  if (val === undefined || val === null || val === '') return '';
+  const n = Number(val);
+  if (isNaN(n)) return String(val);
+  return Number.isInteger(n) ? String(n) : n.toFixed(decimals);
+}
+
+/**
+ * Parse a sort key string like "duration_desc" into {key, direction}.
+ * Pure function.
+ */
+export function parseSortKey(sortStr) {
+  if (!sortStr) return { key: '', direction: '' };
+  if (sortStr === 'random') return { key: 'random', direction: 'desc' };
+  const i = sortStr.lastIndexOf('_');
+  if (i === -1) return { key: sortStr, direction: 'desc' };
+  return { key: sortStr.substring(0, i), direction: sortStr.substring(i + 1) };
+}
+
+/**
+ * Compute CSS background-position for a sprite grid cell.
+ * Pure function.
+ */
+export function spritePosition(frameIndex, cols = 5, rows = 5) {
+  const col = frameIndex % cols;
+  const row = Math.floor(frameIndex / cols);
+  const colPct = cols > 1 ? col * 100 / (cols - 1) : 0;
+  const rowPct = rows > 1 ? row * 100 / (rows - 1) : 0;
+  return `${colPct}% ${rowPct}%`;
+}
+
+/**
+ * Clamp a frame index from mouse position.
+ * Pure function.
+ */
+export function mouseToFrameIndex(mouseXFraction, totalFrames = 25) {
+  return Math.min(totalFrames - 1, Math.max(0, Math.floor(mouseXFraction * totalFrames)));
+}
+
+/**
+ * Truncate text to a max length.
+ * Pure function.
+ */
+export function truncate(text, maxLen = 120) {
+  if (!text) return '';
+  return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+}
+
+/**
+ * Escape HTML entities for safe display.
+ * Pure function (uses DOM but is deterministic).
+ */
+export function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+/**
+ * Highlight search terms in text by wrapping matches in <b><u>...</u></b>.
+ * Escapes HTML first to prevent injection, then applies highlights.
+ * Handles FZF extended syntax: space = AND, 'quoted' = exact, |=OR, !term excluded.
+ * Pure function.
+ */
+export function highlightTerms(text, query) {
+  if (!text || !query || !query.trim()) return escapeHtml(text);
+
+  const escaped = escapeHtml(text);
+
+  // Extract search terms from FZF query (skip ! negations and 'quoted' phrases handled separately)
+  const terms = [];
+  const remaining = query.replace(/'([^']+)'/g, (_, phrase) => {
+    terms.push(phrase);
+    return '';
+  });
+  for (const part of remaining.split(/\s+/)) {
+    if (!part || part.startsWith('!')) continue;
+    for (const t of part.split('|')) {
+      if (t) terms.push(t);
+    }
+  }
+
+  if (!terms.length) return escaped;
+
+  // Build regex from all terms (case-insensitive)
+  const pattern = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp(`(${pattern})`, 'gi');
+
+  return escaped.replace(regex, '<b><u>$1</u></b>');
+}
+
+/**
+ * Collect all numeric fields from a video_info response into [{key, value}].
+ * Iterates metadata + stats — no hardcoded field names.
+ * Pure function.
+ */
+export function collectVideoFields(data) {
+  const fields = [];
+  for (const source of [data.metadata, data.stats]) {
+    if (!source) continue;
+    for (const [k, v] of Object.entries(source)) {
+      if (typeof v === 'number') fields.push({ key: k, value: v });
+    }
+  }
+  return fields;
+}
