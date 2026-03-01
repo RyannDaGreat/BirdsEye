@@ -129,10 +129,10 @@ def atomic_write(path, writer_fn, suffix=".tmp"):
 
 
 def save_json_atomic(data, path):
-    """Atomic JSON save: temp file + rename. Safe for NFS."""
+    """Atomic JSON save: temp file + rename. Pretty-printed with tab indent. Safe for NFS."""
     def write(tmp):
         with open(tmp, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, indent="\t")
     atomic_write(path, write)
 
 

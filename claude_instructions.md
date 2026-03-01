@@ -1687,3 +1687,23 @@ Source: `/root/CleanCode/Dumps/Web360/datasets/web360`
 - 1-2 dataset-specific fields if valuable
 - Hardlink videos into `datasets/web360/samples/`
 - Should appear alongside Pexels in the UI dropdown
+
+### Upcoming: Frontend Embedding Model Decoupling
+
+The frontend hardcodes "CLIP" in several places. This breaks plugin isolation — the
+only place that mentions CLIP should be `preprocess/processors/clip.py`.
+
+**Requirement:** The frontend must dynamically discover available embedding models
+from the server. No hardcoded model names.
+
+**API change:** Add `GET /api/embedding_models` returning available text encoders
+with metadata from `embedding_space` dicts. Frontend fetches on mount.
+
+**UI design:** The search mode switcher currently shows "Fuzzy / CLIP / Hull".
+- With one embedding model: "Fuzzy / [model_name] / Hull" — looks the same as now
+- With multiple models: the semantic search button becomes a split button or shows
+  a small dropdown to select which model. Hull mode uses the selected model.
+- All error messages and help text use the model name from the API, not hardcoded.
+
+This makes the system fully pluggable: add a new embedding processor, server discovers
+it, frontend shows it — zero edits to any other file.
