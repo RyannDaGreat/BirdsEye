@@ -1992,6 +1992,57 @@ Source: another dump folder (likely `/root/CleanCode/Dumps/OpenHumanVid/` or sim
 4. Collision check at boot ensures no name conflicts
 5. Full testing alongside Pexels and Web360
 
+### Upcoming: Modular Preview Pane
+
+The detail/preview pane should become a stack of collapsible sections, where each
+section is contributed by a processor, dataset, or built-in feature. This enables
+datasets like OpenHumanVid to show pose skeletons, depth maps, etc. alongside the
+standard video player and thumbnails.
+
+**Architecture (Option 3: Hybrid generic + custom renderers):**
+
+```
+frontend/src/components/preview/
+  PreviewSection.svelte     — collapsible wrapper (label, expand/collapse toggle)
+  ImagePreview.svelte       — renders any image artifact
+  VideoPreview.svelte       — video player
+  JsonPreview.svelte        — collapsible JSON tree view
+  SkeletonPreview.svelte    — skeleton overlay on image (custom for pose data)
+  FieldBarsPreview.svelte   — metadata field bars
+```
+
+- Each artifact type ("image", "video", "data", "skeleton") maps to a renderer.
+- Generic renderers for common types (image → `<img>`, video → `<video>`, JSON → tree).
+- Custom renderers for special types (skeleton overlay, depth colormap).
+- Preview pane iterates over sections and renders the appropriate component.
+- Sections are collapsible so the pane doesn't get overwhelming.
+- Adding a new visualization = drop a Svelte file + map the artifact type to it.
+
+**Section ordering:** Priority-based. Built-in (video, fields, frames) first, then
+processor artifacts, then dataset artifacts. Each declares a priority number.
+
+### Upcoming: Download Selected Samples
+
+**Feature:** A "Download Selected" button that zips up sample directories for manually
+selected videos and serves as a browser download.
+
+**Backend:** `POST /api/download` — accepts `{dataset, video_names: [...]}`. Hard cap
+at 50 samples (safety limit). Creates a temp zip of sample directories with flat
+structure (no shard nesting): `dataset_videoname/thumb_middle.jpg`, etc. Streams back
+with `Content-Disposition: attachment; filename="samples.zip"`.
+
+**Frontend:**
+- Download button in toolbar (near Export): `<iconify-icon icon="mdi:download">`.
+  Shows count: "Download (3)". Only enabled when `selectedVideos.size > 0`.
+- Per-sample download button in detail panel: downloads just that one sample.
+- NO "download all results" option — only manually selected samples.
+
+**Helper:** Pure function `zip_sample_dirs(sample_paths) -> bytes` in a utility module.
+The endpoint calls it and streams the result.
+
+**Future refinement:** Option to exclude compression ladder (6 video files per sample)
+and only include primary proxy + thumbnails + metadata, to keep zip sizes manageable.
+
 ### Upcoming: Multi-Dataset UI
 
 Currently one dataset visible at a time via dropdown. Future enhancement:
