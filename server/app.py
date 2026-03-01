@@ -141,7 +141,7 @@ def parse_pagination(args):
 def load_favorites(path):
     """
     Load favorites from a JSON file. Returns dict {dataset: [video_names]}.
-    Pure function (reads filesystem).
+    Reads filesystem.
 
     >>> load_favorites("/nonexistent_xyz_path")
     {}
@@ -177,7 +177,7 @@ def load_vector_indices(cache_dir):
     Load all vector indices from cache/ directory. Generic: finds all
     {prefix}_index.faiss files and loads their corresponding data.
 
-    Pure function (reads filesystem).
+    Reads filesystem.
 
     Returns dict: {prefix: {video_names, embeddings, faiss_index}} or empty dict.
 

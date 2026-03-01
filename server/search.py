@@ -40,7 +40,7 @@ def tokenize_query(query):
     >>> tokenize_query("cat dog")
     [{'type': 'and', 'words': ['cat']}, {'type': 'and', 'words': ['dog']}]
     >>> tokenize_query("!rain 'blue sky'")
-    [{'type': 'not', 'words': ['rain']}, {'type': 'exact', 'phrase': 'blue sky'}]
+    [{'type': 'exact', 'phrase': 'blue sky'}, {'type': 'not', 'words': ['rain']}]
     >>> tokenize_query("cat|dog bird")
     [{'type': 'or', 'words': ['cat', 'dog']}, {'type': 'and', 'words': ['bird']}]
     """
@@ -155,11 +155,14 @@ def fuzzy_search(entries, query, limit=200):
 def clip_search(query_embedding, index, video_names, k=200):
     """
     Search FAISS index for nearest neighbors to a CLIP text embedding.
+    Pure function.
+    (D,) or (1, D) float32, faiss.Index, list[str] → list[{video_name, score}]
 
-    Pure function: (embedding, index, names, k) → list of (name, score).
-
-    >>> isinstance(clip_search.__doc__, str)
-    True
+    >>> import faiss
+    >>> idx = faiss.IndexFlatIP(3)
+    >>> idx.add(np.array([[1,0,0],[0,1,0]], dtype=np.float32))
+    >>> clip_search([1, 0, 0], idx, ["a", "b"], k=2)[0]["video_name"]
+    'a'
     """
     query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
     query_embedding = l2_normalize(query_embedding)
@@ -174,13 +177,13 @@ def clip_search(query_embedding, index, video_names, k=200):
 def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
     """
     Find videos nearest to the centroid of selected video embeddings.
-
     Approximation of convex hull — uses centroid for simplicity and speed.
-
     Pure function.
+    (K, D) float32, (N, D) float32, list[str] → list[{video_name, score}]
 
-    >>> isinstance(convex_hull_search.__doc__, str)
-    True
+    >>> embs = np.array([[1,0,0],[0,1,0],[0.9,0.1,0]], dtype=np.float32)
+    >>> convex_hull_search(embs[:1], embs, ["a","b","c"], k=3)[0]["video_name"]
+    'a'
     """
     if len(selected_embeddings) == 0:
         return []

@@ -37,7 +37,7 @@ def list_shard_pairs(samples_dir):
     """
     List all (shard1, shard2, path) tuples under samples/.
     Two-level hex sharding: samples/<xx>/<yy>/<sample_id>/.
-    Pure function (reads filesystem).
+    Reads filesystem.
 
     >>> list_shard_pairs("/nonexistent_dir_xyz")
     []
@@ -62,7 +62,7 @@ def discover_sample_dirs(samples_dir):
     (sample_id, sample_dir_path) for each directory containing origins.json.
 
     Shows progress per shard pair (up to 256×256 = 65,536 buckets).
-    Pure function (reads filesystem).
+    Reads filesystem.
 
     >>> discover_sample_dirs("/nonexistent_dir_xyz")
     []
@@ -96,7 +96,7 @@ def video_name_from_sample_id(sid):
 def read_sample_json(sample_path, filename):
     """
     Read a JSON file from a sample directory. Returns dict or None.
-    Pure function (reads filesystem).
+    Reads filesystem.
 
     >>> read_sample_json("/nonexistent_xyz", "metadata.json") is None
     True
@@ -111,7 +111,7 @@ def read_sample_json(sample_path, filename):
 def read_sample_numpy(sample_path, filename):
     """
     Read a .npy file from a sample directory. Returns ndarray or None.
-    Pure function (reads filesystem).
+    Reads filesystem.
 
     >>> read_sample_numpy("/nonexistent_xyz", "embedding.npy") is None
     True

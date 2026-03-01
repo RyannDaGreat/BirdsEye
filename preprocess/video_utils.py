@@ -41,7 +41,12 @@ def sample_shard(sid):
 
 
 def sample_dir(dataset_dir, video_name):
-    """Full path to a sample's artifact directory. Pure function."""
+    """
+    Full path to a sample's artifact directory. Pure function.
+
+    >>> 'samples' in sample_dir('/data/pexels', '19012581')
+    True
+    """
     dataset = os.path.basename(dataset_dir)
     sid = sample_id(dataset, video_name)
     return os.path.join(dataset_dir, "samples", sample_shard(sid), sid)
