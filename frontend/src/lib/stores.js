@@ -43,8 +43,6 @@ export const currentPage = writable(1);
 export const totalResults = writable(0); // server-reported total (across all pages)
 
 // --- Derived ---
-export const selectedCount = derived(selectedVideos, $s => $s.size);
-
 export const datasetInfo = derived(
   [datasets, currentDataset],
   ([$datasets, $currentDataset]) => $datasets[$currentDataset] || { count: 0 }

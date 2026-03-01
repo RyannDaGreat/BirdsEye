@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, filters, detailData, showExport, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites } from './lib/stores.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites } from './lib/stores.js';
   import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';

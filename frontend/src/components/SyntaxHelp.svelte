@@ -1,5 +1,5 @@
 <script>
-  import { showHelp, currentSort, fieldInfo } from '../lib/stores.js';
+  import { showHelp, currentSort } from '../lib/stores.js';
   import { parseSortKey } from '../lib/format.js';
   import { fieldLabel, fieldDescription } from '../lib/fields.js';
 

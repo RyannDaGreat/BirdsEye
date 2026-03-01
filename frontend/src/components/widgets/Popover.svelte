@@ -7,7 +7,6 @@
 
   export let text = '';
 
-  let open = false;
   let triggerEl;
   let portalEl;
 
@@ -42,12 +41,10 @@
     portalEl.style.top = (rect.bottom + 4) + 'px';
     portalEl.innerHTML = text;
     portalEl.style.display = 'block';
-    open = true;
   }
 
   function hide() {
     if (portalEl) portalEl.style.display = 'none';
-    open = false;
   }
 </script>
 
