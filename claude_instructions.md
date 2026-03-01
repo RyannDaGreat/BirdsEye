@@ -1934,23 +1934,44 @@ because selecting K similar videos places the centroid deep in that concept regi
 
 ### Upcoming: Dataset-Native Artifacts
 
-Datasets can bring their own artifacts beyond video_name/caption/source_path.
-For example, OpenHumanVid has:
-- Human pose annotations
-- Segmentation masks
-- Additional video angles or crops
+Datasets can bring their own per-sample file artifacts beyond video_name/caption/source_path.
+For example, OpenHumanVid has pose annotations, segmentation masks, depth maps.
 
-**Requirements:**
+**Current state:** `ensure_sample_dir()` on the Processor base class creates the sample
+directory, writes `origins.json`, and hardlinks `video.mp4` from `source_path`. This runs
+during the first processor (compress). All processors call it. It works generically for
+any dataset as long as `source_path` points to a real video file.
+
+**The question:** How to get non-video dataset artifacts (poses, masks, etc.) into sample dirs?
+
+**Option A: Extend `ensure_sample_dir()`** — Have it check the dataset module for declared
+artifacts and copy/link them alongside `video.mp4`. Keeps sample creation in one place.
+Pro: single source of truth for sample dir setup. Con: couples Processor base class to
+Dataset modules (currently independent).
+
+**Option B: Dataset `populate()` method** — Each dataset implements its own logic for
+populating sample dirs with its artifacts. Called by the pipeline before processors run.
+Pro: maximum flexibility per dataset. Con: duplicates shard routing / directory creation
+logic, or requires importing it from video_utils.
+
+**Option C: Do nothing until needed** — The numeric fields from datasets (aesthetic, blur,
+etc.) already flow through manifest → entries → dataset_fields without needing files in
+sample dirs. File-based artifacts (poses, masks) aren't blocking any current use case.
+Add the feature when there's a concrete need. Pro: no premature abstraction. Con: delays
+the feature if someone needs it soon.
+
+**Current recommendation: Option C.** No concrete use case exists yet. Revisit when a
+dataset with per-sample file artifacts needs to be displayed in the UI.
+
+**Requirements (when implemented):**
 - Dataset class declares `artifacts` list (same format as processors: {filename, label,
-  description, type}). These are copied into sample dirs during `prepare()`.
+  description, type}). These are copied into sample dirs.
 - Artifact names MUST NOT clash with processor artifact names. Validated at boot via
   `validate_no_collisions()`.
 - Each artifact has a label and description (help string) visible in the UI.
 - Image/video artifacts from datasets are shown in the detail panel (preview area)
   when a sample is double-clicked, alongside processor artifacts.
-- Dataset `help_text` attribute provides a per-dataset description shown in the
-  frontend help section when that dataset is selected. Describes origin, format,
-  characteristics, any special notes.
+- Non-visual artifacts (pose JSON, etc.) listed as data artifacts.
 
 ### Upcoming: OpenHumanVid Integration
 
