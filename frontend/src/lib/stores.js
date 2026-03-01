@@ -12,6 +12,7 @@ export const metadataStats = writable({});
 export const histogramData = writable({});
 export const fieldInfo = writable({ fields: {}, image_outputs: {} });
 export const appConfig = writable({ sprite_cols: 5, sprite_rows: 5, sprite_frames: 25 });
+export const embeddingModels = writable({});  // {prefix: {name, description, dim}}
 export const logScale = writable(true);
 export const hoveredItem = writable(null); // video item being hovered in grid
 export const loading = writable(false);

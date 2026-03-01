@@ -1,11 +1,13 @@
 <script>
-  import { showHelp, currentSort } from '../lib/stores.js';
+  import { showHelp, currentSort, datasets, currentDataset } from '../lib/stores.js';
   import { parseSortKey } from '../lib/format.js';
   import { fieldLabel, fieldDescription } from '../lib/fields.js';
 
   $: ({ key: sortKey } = parseSortKey($currentSort));
   $: sortLabel = sortKey ? fieldLabel(sortKey) : '';
   $: sortDesc = sortKey ? fieldDescription(sortKey) : '';
+  $: dsInfo = $datasets[$currentDataset] || {};
+  $: helpText = dsInfo.help_text || '';
 </script>
 
 <div class="panel block-layout" class:visible={$showHelp}>
@@ -25,9 +27,14 @@
     <span><code>'blue sky'</code> — exact phrase</span>
   </div>
   <div style="margin-top: var(--space-sm);">
-    <strong>Semantic mode</strong>: describe what you want to see (e.g. "sunset over ocean"). Uses CLIP embeddings.
+    <strong>Semantic mode</strong>: describe what you want to see (e.g. "sunset over ocean").
     <strong>Hull mode</strong>: select videos, then find similar ones. Computes the centroid (average) of selected embeddings and ranks by cosine similarity to it.
   </div>
+  {#if helpText}
+    <div style="margin-top: var(--space-sm); color: var(--text-dim);">
+      <strong>Dataset:</strong> {helpText}
+    </div>
+  {/if}
 </div>
 
 <style>

@@ -1,5 +1,5 @@
 <script>
-  import { currentDataset, currentMode, currentSort, searchQuery, datasets, metadataStats, showFilters, showStats, showHelp } from '../lib/stores.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, datasets, metadataStats, showFilters, showStats, showHelp, embeddingModels } from '../lib/stores.js';
   import { availableFields } from '../lib/fields.js';
   import { parseSortKey } from '../lib/format.js';
   import { createEventDispatcher } from 'svelte';
@@ -7,23 +7,35 @@
 
   const dispatch = createEventDispatcher();
 
-  const modes = ['fuzzy', 'clip', 'hull'];
-  const placeholders = {
-    fuzzy: "FZF search: cat dog | !rain | 'blue sky'",
-    clip: 'Describe what you want to see...',
-    hull: 'Hull search from selected videos',
-  };
-  const tooltips = {
-    fuzzy: 'Text search through captions (FZF extended syntax)',
-    clip: 'Semantic search: describe what you want to see',
-    hull: 'Centroid search: computes the average embedding of your selected videos, then finds videos most similar to that average. Works because similar videos cluster in embedding space.',
-  };
+  // Dynamic modes: fuzzy + one per embedding model + hull (if any model exists)
+  $: modelPrefixes = Object.keys($embeddingModels);
+  $: modes = ['fuzzy', ...modelPrefixes, ...(modelPrefixes.length ? ['hull'] : [])];
+
+  function modeLabel(mode) {
+    if (mode === 'fuzzy') return 'Fuzzy';
+    if (mode === 'hull') return 'Hull';
+    const m = $embeddingModels[mode];
+    return m ? mode.toUpperCase() : mode;
+  }
+
+  function modePlaceholder(mode) {
+    if (mode === 'fuzzy') return "FZF search: cat dog | !rain | 'blue sky'";
+    if (mode === 'hull') return 'Hull search from selected videos';
+    return 'Describe what you want to see...';
+  }
+
+  function modeTooltip(mode) {
+    if (mode === 'fuzzy') return 'Text search through captions (FZF extended syntax)';
+    if (mode === 'hull') return 'Centroid search: computes the average embedding of your selected videos, then finds videos most similar to that average. Works because similar videos cluster in embedding space.';
+    const m = $embeddingModels[mode];
+    return m ? `Semantic search via ${m.name}: ${m.description}` : 'Semantic search';
+  }
 
   let debounceTimer;
 
   function onInput() {
     clearTimeout(debounceTimer);
-    const delay = $currentMode === 'clip' ? 500 : 150;
+    const delay = ($currentMode in $embeddingModels) ? 500 : 150;
     debounceTimer = setTimeout(() => dispatch('search'), delay);
   }
 
@@ -69,15 +81,15 @@
 <div class="header">
   <h1><iconify-icon icon="mdi:movie-search" inline></iconify-icon> Searchable Videos</h1>
   <ReloadIndicator />
-  <select class="control" bind:value={$currentDataset} on:change={() => dispatch('search')} title="Select dataset to search">
+  <select class="control" bind:value={$currentDataset} on:change={() => dispatch('datasetchange')} title="Select dataset to search">
     {#each Object.entries($datasets) as [name, info]}
-      <option value={name}>{name} ({info.count})</option>
+      <option value={name}>{info.human_name || name} ({info.count.toLocaleString()})</option>
     {/each}
   </select>
   <div class="search-container">
     <div class="search-wrap">
       <input class="control search" bind:value={$searchQuery}
-             placeholder={placeholders[$currentMode]}
+             placeholder={modePlaceholder($currentMode)}
              title="Search query — type and press Enter"
              on:input={onInput} on:keydown={onKeydown} autofocus />
       {#if $searchQuery}
@@ -87,8 +99,8 @@
     <div class="mode-tabs">
       {#each modes as mode}
         <button class="mode-tab" class:active={$currentMode === mode}
-                title={tooltips[mode]}
-                on:click={() => setMode(mode)}>{mode === 'fuzzy' ? 'Fuzzy' : mode === 'clip' ? 'CLIP' : 'Hull'}</button>
+                title={modeTooltip(mode)}
+                on:click={() => setMode(mode)}>{modeLabel(mode)}</button>
       {/each}
     </div>
   </div>

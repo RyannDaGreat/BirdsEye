@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites } from './lib/stores.js';
-  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite } from './lib/api.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels } from './lib/stores.js';
+  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
 
@@ -53,6 +53,7 @@
     try {
       $appConfig = await fetchConfig();
       $fieldInfo = await fetchFieldInfo();
+      $embeddingModels = await fetchEmbeddingModels();
       $metadataStats = await fetchMetadataStats($currentDataset);
       $histogramData = await fetchHistograms($currentDataset);
       const favList = await fetchFavorites($currentDataset);
@@ -82,17 +83,18 @@
 
     try {
       let data;
+      const isEmbeddingMode = $currentMode in $embeddingModels;
       if ($currentMode === 'fuzzy') {
         data = await searchFuzzy($currentDataset, $searchQuery, searchParams);
-      } else if ($currentMode === 'clip') {
+      } else if (isEmbeddingMode) {
         if (!$searchQuery.trim()) {
           $loading = false;
-          $errorMsg = 'Type a description for CLIP search';
+          $errorMsg = 'Type a description for semantic search';
           $currentResults = [];
           $totalResults = 0;
           return;
         }
-        data = await searchClip($currentDataset, $searchQuery, searchParams);
+        data = await searchClip($currentDataset, $searchQuery, { ...searchParams, index: $currentMode });
       } else if ($currentMode === 'hull') {
         if ($selectedVideos.size === 0) {
           $loading = false;
@@ -119,6 +121,18 @@
       $totalResults = 0;
     }
     $loading = false;
+  }
+
+  async function onDatasetChange() {
+    try {
+      $metadataStats = await fetchMetadataStats($currentDataset);
+      $histogramData = await fetchHistograms($currentDataset);
+      const favList = await fetchFavorites($currentDataset);
+      $favorites = new Set(favList);
+    } catch (e) {
+      console.error('Dataset change fetch failed:', e);
+    }
+    doSearch();
   }
 
   function onSort() {
@@ -163,7 +177,7 @@
   }
 </script>
 
-<SearchHeader on:search={doSearch} on:sort={onSort} />
+<SearchHeader on:search={doSearch} on:sort={onSort} on:datasetchange={onDatasetChange} />
 <FilterPanel on:search={doSearch} />
 <StatsPanel />
 <SyntaxHelp />

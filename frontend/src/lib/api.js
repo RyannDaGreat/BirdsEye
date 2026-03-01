@@ -22,7 +22,8 @@ export async function fetchMetadataStats(dataset) {
 async function searchWithEndpoint(endpoint, dataset, query, params) {
   const filterQS = filtersToQueryString(params.filters);
   const paginationQS = paginationToQueryString(params);
-  const resp = await fetch(`/api/search/${endpoint}?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}`);
+  const indexQS = params.index ? `&index=${encodeURIComponent(params.index)}` : '';
+  const resp = await fetch(`/api/search/${endpoint}?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}${indexQS}`);
   return checkedJson(resp);
 }
 
@@ -54,6 +55,11 @@ export async function fetchConfig() {
 
 export async function fetchFieldInfo() {
   const resp = await fetch('/api/field_info');
+  return checkedJson(resp);
+}
+
+export async function fetchEmbeddingModels() {
+  const resp = await fetch('/api/embedding_models');
   return checkedJson(resp);
 }
 
