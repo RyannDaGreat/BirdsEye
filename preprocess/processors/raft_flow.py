@@ -70,11 +70,9 @@ def _gpu_worker_fn(args):
     """Process a slice of samples on one GPU. Called via torch.multiprocessing.Pool."""
     gpu_id, samples = args
     device = f"cuda:{gpu_id}"
-    from datetime import datetime
 
-    def log(msg):
-        ts = datetime.now().strftime("%H:%M:%S")
-        print(f"  [{ts}] GPU {gpu_id}: {msg}", flush=True)
+    from preprocess.processors.base import make_gpu_logger
+    log = make_gpu_logger(gpu_id)
 
     from concurrent.futures import ThreadPoolExecutor
 

@@ -111,11 +111,9 @@ def _gpu_worker_fn(args):
     """
     gpu_id, samples, model_name, forward_batch = args
     device = f"cuda:{gpu_id}"
-    from datetime import datetime
 
-    def log(msg):
-        ts = datetime.now().strftime("%H:%M:%S")
-        print(f"  [{ts}] GPU {gpu_id}: {msg}", flush=True)
+    from preprocess.processors.base import make_gpu_logger
+    log = make_gpu_logger(gpu_id)
 
     from transformers import CLIPModel, CLIPProcessor
     from concurrent.futures import ThreadPoolExecutor

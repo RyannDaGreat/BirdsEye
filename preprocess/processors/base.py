@@ -304,3 +304,12 @@ def distribute_across_gpus(label, samples, worker_fn, make_chunk_args=None):
 
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"  [{ts}] {label}: done, {len(samples)} samples processed", flush=True)
+
+
+def make_gpu_logger(gpu_id):
+    """Create a timestamped GPU logger closure. Returns callable(msg)."""
+    from datetime import datetime
+    def log(msg):
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"  [{ts}] GPU {gpu_id}: {msg}", flush=True)
+    return log
