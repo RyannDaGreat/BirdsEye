@@ -329,12 +329,18 @@ def create_app(port=8899):
 
     datasets_dir = os.path.join(REPO_ROOT, "datasets")
 
-    # Discover text encoders from processor plugins
+    # Discover processor plugins and text encoders
     from preprocess.processors import discover_processors, collect_text_encoders
     all_procs = discover_processors()
     text_encoders = collect_text_encoders(all_procs)
     if text_encoders:
         print(f"Text encoders available: {list(text_encoders.keys())}")
+
+    # Discover dataset modules and validate no field collisions
+    from datasets import discover_datasets, validate_no_collisions
+    dataset_modules = discover_datasets(datasets_dir)
+    if dataset_modules and all_procs:
+        validate_no_collisions(dataset_modules, all_procs)
 
     print("Loading datasets...")
     if os.path.exists(datasets_dir):

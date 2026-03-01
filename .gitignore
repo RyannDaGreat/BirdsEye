@@ -10,8 +10,10 @@ __pycache__/
 metadatas.json
 datasets/*/samples/
 datasets/*/cache/
-datasets/pexels/manifest.json
+datasets/*/manifest.json
+datasets/*/videos/
 datasets/**/*.backup
+datasets/**/*.csv
 
 # Frontend build output
 static/
