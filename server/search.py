@@ -213,9 +213,9 @@ def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
     return results
 
 
-def all_numeric_values(name, video_metadata, video_stats):
+def all_numeric_values(name, video_metadata, video_stats, dataset_fields=None):
     """
-    Collect all numeric values for a single video from metadata + stats.
+    Collect all numeric values for a single video from metadata, stats, and dataset fields.
 
     Pure function. Returns flat dict {field_name: value}.
 
@@ -225,14 +225,11 @@ def all_numeric_values(name, video_metadata, video_stats):
     {}
     """
     values = {}
-    if video_metadata and name in video_metadata:
-        for k, v in video_metadata[name].items():
-            if isinstance(v, (int, float)):
-                values[k] = v
-    if video_stats and name in video_stats:
-        for k, v in video_stats[name].items():
-            if isinstance(v, (int, float)):
-                values[k] = v
+    for source in (video_metadata, video_stats, dataset_fields):
+        if source and name in source:
+            for k, v in source[name].items():
+                if isinstance(v, (int, float)):
+                    values[k] = v
     return values
 
 
@@ -256,9 +253,9 @@ def check_range_filter(value, filters, key_prefix):
     return True
 
 
-def apply_filters(results, video_metadata, filters, video_stats=None):
+def apply_filters(results, video_metadata, filters, video_stats=None, dataset_fields=None):
     """
-    Filter search results by video metadata and stats.
+    Filter search results by video metadata, stats, and dataset fields.
 
     Pure function.
 
@@ -267,6 +264,7 @@ def apply_filters(results, video_metadata, filters, video_stats=None):
         video_metadata: dict {video_name: {width, height, fps, ...}} or None
         filters: dict with optional min_X / max_X keys for any numeric field
         video_stats: dict {video_name: {clip_std, flow_mean_magnitude, ...}} or None
+        dataset_fields: dict {video_name: {field: value, ...}} or None
 
     >>> meta = {"v1": {"width": 1920, "height": 1080, "fps": 30, "duration": 10, "num_frames": 300}}
     >>> apply_filters([{"video_name": "v1"}], meta, {"min_height": 720})
@@ -291,7 +289,7 @@ def apply_filters(results, video_metadata, filters, video_stats=None):
     filtered = []
     for item in results:
         name = item["video_name"]
-        all_values = all_numeric_values(name, video_metadata, video_stats)
+        all_values = all_numeric_values(name, video_metadata, video_stats, dataset_fields)
 
         passed = True
         for field in active_fields:

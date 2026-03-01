@@ -62,7 +62,7 @@ def collect_numeric_fields(*dicts):
     return fields
 
 
-def compute_metadata_stats(video_metadata, video_stats=None):
+def compute_metadata_stats(video_metadata, video_stats=None, dataset_fields=None):
     """
     Compute min/max/count for all numeric fields across all sources.
 
@@ -71,7 +71,7 @@ def compute_metadata_stats(video_metadata, video_stats=None):
     >>> compute_metadata_stats({"v1": {"width": 1920, "height": 1080, "fps": 30, "duration": 10}})
     {'duration': {'min': 10, 'max': 10, 'count': 1}, 'fps': {'min': 30, 'max': 30, 'count': 1}, 'height': {'min': 1080, 'max': 1080, 'count': 1}, 'width': {'min': 1920, 'max': 1920, 'count': 1}}
     """
-    all_values = collect_numeric_fields(video_metadata, video_stats)
+    all_values = collect_numeric_fields(video_metadata, video_stats, dataset_fields)
     stats = {}
     for key, vals in sorted(all_values.items()):
         if vals:
@@ -270,11 +270,22 @@ def load_dataset(name, datasets_dir):
     # Build caption lookup
     caption_map = {e["video_name"]: e["caption"] for e in entries}
 
+    # Extract dataset-native numeric fields from entries (e.g., aesthetic, blur_min)
+    dataset_fields = {}
+    for e in entries:
+        fields = {k: v for k, v in e.items()
+                  if isinstance(v, (int, float)) and k not in ("video_name",)}
+        if fields:
+            dataset_fields[e["video_name"]] = fields
+    if dataset_fields:
+        print(f"    Dataset fields: {len(dataset_fields)} entries with {len(next(iter(dataset_fields.values())))} fields")
+
     result = {
         "entries": entries,
         "caption_map": caption_map,
         "video_metadata": None,
         "video_stats": None,
+        "dataset_fields": dataset_fields or None,
         "metadata_stats": {},
         "vector_indices": {},  # {prefix: {video_names, embeddings, faiss_index}}
     }
@@ -293,8 +304,10 @@ def load_dataset(name, datasets_dir):
     if not result["vector_indices"]:
         print(f"    No vector indices found (fuzzy search only)")
 
-    # Compute metadata stats for filter UI
-    result["metadata_stats"] = compute_metadata_stats(result["video_metadata"], result["video_stats"])
+    # Compute metadata stats for filter UI (include dataset-native fields)
+    result["metadata_stats"] = compute_metadata_stats(
+        result["video_metadata"], result["video_stats"], result["dataset_fields"]
+    )
 
     print(f"    {len(entries)} videos loaded")
     return result
@@ -365,11 +378,12 @@ def create_app(port=8899):
 
     def enrich_results(results, ds, thumb_filter="any", fav_filter="any", fav_set=None):
         """
-        Attach metadata and stats to each result item.
+        Attach metadata, stats, and dataset fields to each result item.
         Apply ternary filters: thumb_filter and fav_filter ('any'|'only'|'none').
         """
         meta = ds.get("video_metadata") or {}
         stats_data = ds.get("video_stats") or {}
+        ds_fields = ds.get("dataset_fields") or {}
         fav_set = fav_set or set()
         enriched = []
         for r in results:
@@ -388,6 +402,8 @@ def create_app(port=8899):
                 r["metadata"] = meta[name]
             if name in stats_data:
                 r["stats"] = stats_data[name]
+            if name in ds_fields:
+                r.setdefault("stats", {}).update(ds_fields[name])
             enriched.append(r)
         return enriched
 
@@ -425,7 +441,7 @@ def create_app(port=8899):
         Returns (page_results, total_count, result_histograms).
         """
         if filters:
-            results = apply_filters(results, ds["video_metadata"], filters, ds["video_stats"])
+            results = apply_filters(results, ds["video_metadata"], filters, ds["video_stats"], ds.get("dataset_fields"))
         fav_set = set(FAVORITES.get(dataset, []))
         enriched = enrich_results(results, ds, thumb_filter=thumb_filter, fav_filter=fav_filter, fav_set=fav_set)
         sorted_results = sort_results(enriched, sort_key, sort_dir, random_seed)
@@ -538,6 +554,10 @@ def create_app(port=8899):
             "score": {"label": "Score", "description": "Cosine similarity between the text embedding of the search query and the image embedding of the video's middle frame. Text encoded at query time, image embeddings pre-computed. Higher = more visually similar to query text.", "dtype": "float"},
         }
         all_fields.update(plugin_fields)
+
+        # Add dataset-native fields
+        for ds_mod in dataset_modules.values():
+            all_fields.update(ds_mod.fields)
 
         return jsonify({
             "fields": all_fields,
