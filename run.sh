@@ -49,7 +49,7 @@ if [ -f "datasets/pexels/cache/cache_manifest.json" ]; then
 else
     SAMPLE_COUNT="0"
 fi
-echo "Searchable Videos"
+echo "Bird's Eye"
 echo "  Port:       http://0.0.0.0:${PORT}"
 echo "  Dataset:    pexels"
 echo "  Processed:  ${SAMPLE_COUNT} samples"

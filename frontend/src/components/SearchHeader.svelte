@@ -79,7 +79,7 @@
 </script>
 
 <div class="header">
-  <h1><iconify-icon icon="mdi:movie-search" inline></iconify-icon> Searchable Videos</h1>
+  <h1><iconify-icon icon="mdi:bird" inline></iconify-icon> Bird's Eye</h1>
   <ReloadIndicator />
   <select class="control" bind:value={$currentDataset} on:change={() => dispatch('datasetchange')} title="Select dataset to search">
     {#each Object.entries($datasets) as [name, info]}

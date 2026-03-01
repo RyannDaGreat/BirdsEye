@@ -1,5 +1,5 @@
 """
-Flask backend for Searchable Pexels v2.
+Flask backend for Bird's Eye video search.
 
 Serves the web UI and provides search API endpoints:
   - /api/search/fuzzy   — FZF extended-mode text search
@@ -864,7 +864,7 @@ def create_app(port=8899):
         return jsonify({"error": f"Failed to reload dataset '{dataset}'"}), 500
 
     print(f"\n{'='*60}")
-    print(f"  Searchable Pexels v2 — http://0.0.0.0:{port}")
+    print(f"  Bird's Eye — http://0.0.0.0:{port}")
     print(f"{'='*60}\n")
     app.run(host="0.0.0.0", port=port, debug=False)
 

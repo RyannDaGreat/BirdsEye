@@ -1,4 +1,4 @@
-# Searchable Pexels — Concerns & Progress Log
+# Bird's Eye — Concerns & Progress Log
 
 ## 2026-02-26 — Project Init
 

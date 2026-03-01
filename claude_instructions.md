@@ -1,4 +1,4 @@
-# Searchable Pexels — Project Manifest (v2: Processor Architecture)
+# Bird's Eye — Project Manifest (v2: Processor Architecture)
 
 ## Glossary
 
@@ -2021,6 +2021,11 @@ frontend/src/components/preview/
 **Section ordering:** Priority-based. Built-in (video, fields, frames) first, then
 processor artifacts, then dataset artifacts. Each declares a priority number.
 
+**Compression cascade section:** The compress processor produces 6 resolution tiers
+(144p–1080p). These could be shown as a collapsible accordion section in the preview
+pane, alongside the existing first/middle/last thumbnails. Useful for comparing
+quality across resolutions.
+
 ### Upcoming: Download Selected Samples
 
 **Feature:** A "Download Selected" button that zips up sample directories for manually
@@ -2038,10 +2043,7 @@ with `Content-Disposition: attachment; filename="samples.zip"`.
 - NO "download all results" option — only manually selected samples.
 
 **Helper:** Pure function `zip_sample_dirs(sample_paths) -> bytes` in a utility module.
-The endpoint calls it and streams the result.
-
-**Future refinement:** Option to exclude compression ladder (6 video files per sample)
-and only include primary proxy + thumbnails + metadata, to keep zip sizes manageable.
+The endpoint calls it and streams the result. Zips the entire sample directory as-is.
 
 ### Upcoming: Multi-Dataset UI
 

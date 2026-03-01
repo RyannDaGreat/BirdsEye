@@ -1,6 +1,6 @@
-# Searchable Pexels
+# Bird's Eye
 
-Web application for searching through video datasets using fuzzy text search, CLIP semantic search, and per-video statistics with histogram filtering.
+Web application for searching through video datasets using fuzzy text search, semantic embedding search, and per-video statistics with histogram filtering.
 
 **This README covers:** how to run the processor, how to run the server, all API endpoints, the plugin architecture (including plugin-driven aggregation), multi-machine safety, and how processing feeds live data into the server.
 
