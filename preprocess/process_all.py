@@ -34,8 +34,7 @@ from preprocess.processors import discover_processors, resolve_dependencies
 from preprocess.video_utils import sample_dir
 
 
-DEFAULT_MANIFEST = "datasets/pexels/manifest.json"
-DEFAULT_DATASET_DIR = "datasets/pexels"
+DATASETS_ROOT = os.path.join(REPO_ROOT, "datasets")
 
 
 def _log(msg):
@@ -216,7 +215,7 @@ def format_processor_help(all_processors):
     return "\n".join(lines)
 
 
-VALID_ARGS = {"manifest", "dataset_dir", "batch_size", "workers", "shuffle",
+VALID_ARGS = {"dataset", "batch_size", "workers", "shuffle",
               "process", "skip", "auto_aggregate"}
 
 
@@ -237,8 +236,7 @@ def _validate_kwargs(kwargs, valid_args, script_name):
         sys.exit(1)
 
 
-def process_all(manifest=DEFAULT_MANIFEST, dataset_dir=DEFAULT_DATASET_DIR,
-                batch_size=500, workers=32, shuffle=True,
+def process_all(dataset=None, batch_size=500, workers=32, shuffle=True,
                 process=None, skip=None, auto_aggregate=True, **kwargs):
     """
     Process videos in batches using the modular processor system.
@@ -251,8 +249,7 @@ def process_all(manifest=DEFAULT_MANIFEST, dataset_dir=DEFAULT_DATASET_DIR,
     because ready-to-run processors don't have to wait for dependencies.
 
     Args:
-        manifest: path to manifest.json
-        dataset_dir: path to dataset directory (e.g., datasets/pexels)
+        dataset: name of the dataset to process (e.g., "pexels", "web360"). REQUIRED.
         batch_size: videos per batch
         workers: CPU workers for parallel steps
         shuffle: randomize processing order for multi-machine safety (default True)
@@ -263,9 +260,32 @@ def process_all(manifest=DEFAULT_MANIFEST, dataset_dir=DEFAULT_DATASET_DIR,
     # 0. Validate CLI args
     _validate_kwargs(kwargs, VALID_ARGS, "process_all.py")
 
-    # 1. Discover processors
+    # 1. Discover dataset and processor plugins
+    from datasets import discover_datasets
+    dataset_modules = discover_datasets(DATASETS_ROOT)
+
     all_processors = discover_processors()
     proc_names = sorted(all_processors.keys())
+
+    # 1a. Require --dataset
+    if dataset is None:
+        print(f"\nERROR: --dataset is required. Specify which dataset to process.\n")
+        print("Available datasets:")
+        for name, ds_mod in sorted(dataset_modules.items()):
+            print(f"  {name:20s} {ds_mod.human_name}")
+        if not dataset_modules:
+            print("  (none — create a dataset module in datasets/<name>/__init__.py)")
+        sys.exit(1)
+
+    if dataset not in dataset_modules:
+        print(f"\nERROR: Unknown dataset '{dataset}'.\n")
+        print("Available datasets:")
+        for name, ds_mod in sorted(dataset_modules.items()):
+            print(f"  {name:20s} {ds_mod.human_name}")
+        sys.exit(1)
+
+    dataset_dir = os.path.join(DATASETS_ROOT, dataset)
+    manifest = os.path.join(dataset_dir, "manifest.json")
 
     # 1b. Require --process (no silent "run everything" default)
     if process is None and skip is None:
@@ -297,6 +317,7 @@ def process_all(manifest=DEFAULT_MANIFEST, dataset_dir=DEFAULT_DATASET_DIR,
     print(f"\n{'='*60}")
     print(f"CONFIGURATION")
     print(f"{'='*60}")
+    print(f"  dataset:        {dataset} ({dataset_modules[dataset].human_name})")
     print(f"  manifest:       {manifest}")
     print(f"  dataset_dir:    {dataset_dir}")
     print(f"  batch_size:     {batch_size}")
