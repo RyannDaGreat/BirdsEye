@@ -96,6 +96,7 @@ def _validate_no_collisions(processors):
 def resolve_dependencies(enabled_names, all_processors):
     """
     Add all transitive dependencies and return in topological order.
+    Detects circular dependencies and raises ValueError.
 
     Pure function.
 
@@ -103,19 +104,34 @@ def resolve_dependencies(enabled_names, all_processors):
     >>> class B: name='b'; depends_on=['a']
     >>> resolve_dependencies({'b'}, {'a': A(), 'b': B()})
     ['a', 'b']
+    >>> class X: name='x'; depends_on=['y']
+    >>> class Y: name='y'; depends_on=['x']
+    >>> resolve_dependencies({'x'}, {'x': X(), 'y': Y()})
+    Traceback (most recent call last):
+        ...
+    ValueError: Circular dependency detected: x -> y -> x
     """
     resolved = []
     visited = set()
+    in_progress = set()   # nodes currently on the recursion stack
+    path = []             # current DFS path for error messages
 
     def visit(name):
         if name in visited:
             return
-        visited.add(name)
+        if name in in_progress:
+            cycle = path[path.index(name):] + [name]
+            raise ValueError(f"Circular dependency detected: {' -> '.join(cycle)}")
+        in_progress.add(name)
+        path.append(name)
         proc = all_processors[name]
         for dep in proc.depends_on:
             if dep not in all_processors:
                 raise ValueError(f"Processor '{name}' depends on unknown processor '{dep}'")
             visit(dep)
+        path.pop()
+        in_progress.remove(name)
+        visited.add(name)
         resolved.append(name)
 
     for name in sorted(enabled_names):

@@ -27,7 +27,7 @@
   $: badgeText = sortKey && sortVal !== undefined
     ? formatNumber(sortVal)
     : (item.score !== undefined ? formatNumber(item.score * 100, 1) : '');
-  $: badgeTitle = sortKey ? fieldLabel(sortKey) : (item.score !== undefined ? 'CLIP similarity score' : '');
+  $: badgeTitle = sortKey ? fieldLabel(sortKey) : (item.score !== undefined ? 'Similarity score' : '');
 
   let hoverFrame = 'middle';
   $: currentSrc = hoverFrame === 'first' ? firstUrl : hoverFrame === 'last' ? lastUrl : middleUrl;

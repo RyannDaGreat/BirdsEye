@@ -668,8 +668,8 @@ All other frontend features carry forward unchanged:
 │   ├── distill_metadata.py   # raw JSON → manifest.json
 │   ├── video_utils.py        # sample_shard, sample_dir, frame helpers, pure functions
 │   └── processors/
-│       ├── __init__.py       # discover_processors(), resolve_dependencies(), collect_aggregation_rules()
-│       ├── base.py           # Processor base class (ensure_sample_dir: hardlink + symlink fallback)
+│       ├── __init__.py       # discover_processors(), resolve_dependencies(), collect_text_encoders()
+│       ├── base.py           # Processor base class (embedding_space, encode_text, ensure_sample_dir)
 │       ├── compress.py       # compression ladder (root processor, ffmpeg)
 │       ├── ingest.py         # thumbnails + sprites + metadata (PyAV, depends on compress)
 │       ├── clip.py           # CLIP embeddings (subprocess, batched GPU inference)
@@ -677,8 +677,7 @@ All other frontend features carry forward unchanged:
 │       └── phash.py          # perceptual hash (CPU Pool)
 ├── server/
 │   ├── app.py                # Flask server, all API endpoints
-│   ├── search.py             # search logic (fuzzy, CLIP, hull)
-│   └── clip_encoder.py       # CLIP text encoding for queries
+│   └── search.py             # search logic (fuzzy, CLIP, hull)
 ├── frontend/
 │   └── src/                  # Svelte app (see Frontend Components section)
 ├── static/                   # vite build output (gitignored)
@@ -718,11 +717,13 @@ def discover_processors():
 def resolve_dependencies(enabled_names, all_processors):
     """Given enabled processor names, add all transitive dependencies.
     Returns list in topological order (dependencies first).
+    Detects circular dependencies and raises ValueError with the cycle path.
 
     Example: resolve_dependencies({"clip"}, all_procs) → ["ingest", "clip"]
     """
     resolved = []
     visited = set()
+    in_progress = set()  # cycle detection
 
     def visit(name):
         if name in visited:
@@ -1221,13 +1222,12 @@ Never prioritize security work in this project.
   export const searchClip = (d, q, p) => searchWithEndpoint('clip', d, q, p);
   ```
 
-**R4 — CLIP_MODEL duplicated + clip_encoder.py breaks plugin isolation**
-- `server/clip_encoder.py:12`: `CLIP_MODEL = "openai/clip-vit-base-patch32"`
-- `preprocess/processors/clip.py:22`: `CLIP_MODEL = "openai/clip-vit-base-patch32"`
-- Deeper problem: `server/clip_encoder.py` exists as a standalone file that hardcodes CLIP
-  knowledge outside the CLIP plugin. This breaks plugin isolation — all CLIP knowledge should
-  live in `preprocess/processors/clip.py` and nowhere else. The server shouldn't mention CLIP
-  specifically; it should generically discover which embedding processors provide text encoders.
+**R4 — CLIP_MODEL duplicated + clip_encoder.py breaks plugin isolation** ✅ RESOLVED
+- Was: `server/clip_encoder.py` hardcoded CLIP knowledge outside the plugin.
+- Fix: Text encoding is now part of the processor plugin contract. `Processor` base class
+  has optional `embedding_space` dict and `encode_text()` staticmethod. `ClipProcessor`
+  overrides both. Server discovers text encoders generically via `collect_text_encoders()`.
+  `server/clip_encoder.py` deleted. `CLIP_MODEL` lives only in `clip.py`.
 - Why the server needs text encoding: at search time, the user's text query must be encoded
   into the same embedding space as the pre-computed image embeddings. Currently only CLIP,
   but future embedding types will be added (VideoCLIP, Gemini text embeddings, etc.).
@@ -1613,3 +1613,77 @@ Implementation steps:
 6. **Add `.dirty` to `.gitignore`**: `**/.dirty`
 
 7. **Test**: process batch → verify markers → aggregate → verify cleanup → restart → verify fast boot.
+
+---
+
+## Upcoming: Dataset Plugin Architecture
+
+### Motivation
+
+The current `manifest.json` is a flat list of `{video_name, caption, source_path}` — it's
+hardcoded to Pexels and has no concept of different dataset types with different fields.
+We need to support multiple datasets (Pexels, Web360, future image datasets) where each
+dataset may have unique fields, different source formats, and different requirements.
+
+### Design: Datasets as Python Modules
+
+Each dataset is a Python module under `datasets/<name>/` with an `__init__.py` that
+subclasses a base class. Just like processors — drop a module, zero registration needed.
+
+```
+datasets/
+  pexels/
+    __init__.py            # class PexelsDataset(VideoDataset): ...
+    manifest.json          # raw data (CSV, JSON, whatever the source provides)
+    samples/               # per-sample artifacts (same as now)
+    cache/                 # aggregated cache (same as now)
+  web360/
+    __init__.py            # class Web360Dataset(VideoDataset): ...
+    metadata.csv           # raw data from Web360 dump
+    samples/
+    cache/
+```
+
+### Base Class Hierarchy
+
+```python
+class Dataset(ABC):
+    """Base class for all datasets."""
+    name: str              # Machine name: "pexels", "web360"
+    human_name: str        # Display name: "Pexels", "Web360"
+    fields: dict           # {field_name: {label, description, dtype}} — dataset-native fields
+
+    @abstractmethod
+    def entries(self) -> list[dict]:
+        """Yield all entries. Each entry must have at minimum: video_name."""
+        ...
+
+class VideoDataset(Dataset):
+    """Mixin for video-based datasets. Adds video-specific requirements."""
+    # Requires: video_name, caption, source_path per entry
+    # Processors that depend on video data check isinstance(dataset, VideoDataset)
+```
+
+### Key Principles
+
+- **Dataset defines its own fields** — not raw JSON dump. The Python module chooses which
+  fields to expose, how to name them, and their types. Raw source format is internal.
+- **A sample = dataset fields + processor fields + processor artifacts.** The sum of
+  everything the dataset provides and everything processors compute.
+- **Collision checking at boot** — dataset fields vs processor fields, dataset artifacts vs
+  processor artifacts. No name may appear in both. ValueError at startup if violated.
+- **Fields work identically in UI** — dataset fields appear in histograms, filters, sort
+  just like processor fields. Partial coverage is fine (not every sample has every field).
+- **Processors are dataset-agnostic** — they operate on artifacts (thumbnails, sprites),
+  not on dataset-specific metadata. A processor that needs video frames works on any
+  VideoDataset.
+- **Videos are hardlinked into samples/** — self-contained, no external path dependencies.
+
+### Web360 Integration (POC)
+
+Source: `/root/CleanCode/Dumps/Web360/datasets/web360`
+- Small dataset, quick to process
+- Basic processing only: compress + ingest (no CLIP, no RAFT)
+- 1-2 dataset-specific fields if valuable
+- Hardlink videos into `datasets/web360/samples/`
+- Should appear alongside Pexels in the UI dropdown
