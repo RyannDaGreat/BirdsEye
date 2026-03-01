@@ -31,7 +31,7 @@ from flask_cors import CORS
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
-from server.search import fuzzy_search, clip_search, convex_hull_search, apply_filters, all_numeric_values, sort_results, paginate
+from server.search import fuzzy_search, clip_search, convex_hull_search, apply_filters, all_numeric_values, sort_results, paginate, bin_values
 from server.clip_encoder import encode_text
 from preprocess.video_utils import sample_dir, save_json_atomic
 
@@ -400,12 +400,8 @@ def create_app(port=8899):
         for field, stats in metadata_stats.items():
             lo = stats["min"]
             hi = stats["max"]
-            bucket_size = (hi - lo) / bins if hi > lo else 1
-            counts = [0] * bins
             values = fields.get(field, [])
-            for v in values:
-                idx = min(bins - 1, max(0, int((v - lo) / bucket_size)))
-                counts[idx] += 1
+            counts = bin_values(values, lo, hi, bins)
             histograms[field] = {"lo": lo, "hi": hi, "counts": counts, "count": len(values)}
         return histograms
 
@@ -576,11 +572,7 @@ def create_app(port=8899):
                 continue
             lo = min(values)
             hi = max(values)
-            bucket_size = (hi - lo) / bins if hi > lo else 1
-            counts = [0] * bins
-            for v in values:
-                idx = min(bins - 1, max(0, int((v - lo) / bucket_size)))
-                counts[idx] += 1
+            counts = bin_values(values, lo, hi, bins)
             histograms[field] = {"lo": lo, "hi": hi, "counts": counts, "count": len(values)}
 
         return histograms

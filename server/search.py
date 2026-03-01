@@ -375,3 +375,23 @@ def paginate(results, page, page_size):
     """
     start = (page - 1) * page_size
     return results[start:start + page_size]
+
+
+def bin_values(values, lo, hi, bins):
+    """
+    Bin numeric values into histogram counts. Pure function.
+    (list[float], float, float, int) → list[int]
+
+    >>> bin_values([0.5, 1.5, 2.5, 3.5], 0, 4, 4)
+    [1, 1, 1, 1]
+    >>> bin_values([], 0, 10, 5)
+    [0, 0, 0, 0, 0]
+    >>> bin_values([0, 0, 0], 0, 0, 3)
+    [3, 0, 0]
+    """
+    bucket_size = (hi - lo) / bins if hi > lo else 1
+    counts = [0] * bins
+    for v in values:
+        idx = min(bins - 1, max(0, int((v - lo) / bucket_size)))
+        counts[idx] += 1
+    return counts
