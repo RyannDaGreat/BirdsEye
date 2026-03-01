@@ -60,7 +60,7 @@
     <div class="resize-handle" class:dragging on:mousedown={startResize} title="Drag to resize panel"></div>
     <button class="close-btn" on:click={close} title="Close detail panel (Escape)">&times;</button>
 
-    <div class="detail-name">{$detailData.video_name}</div>
+    <div class="detail-name">{$currentDataset}:<strong>{$detailData.video_name}</strong></div>
 
     <div class="video-container">
       <video src="/api/video/{$currentDataset}/{$detailData.video_name}"

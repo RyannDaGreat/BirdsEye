@@ -105,7 +105,7 @@
     </div>
   </div>
   <select class="control" bind:value={sortField} on:change={onSortFieldChange} title="Sort results by a field">
-    <option value="">Sort: default</option>
+    <option value="">Sort: relevance</option>
     <option value="random">Random</option>
     <option value="score">Score</option>
     <option value="name">Name</option>

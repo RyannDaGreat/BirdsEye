@@ -481,7 +481,11 @@ def create_app(port=8899):
 
     @app.route("/api/video/<dataset>/<video_name>")
     def serve_video(dataset, video_name):
-        """Stream video file for playback."""
+        """
+        Stream video file for playback. Prefers H.264 proxy (compress_480p.mp4)
+        over original source because original may use codecs browsers can't play
+        (e.g., MPEG-4 Part 2 in Web360).
+        """
         if dataset not in DATASETS:
             return jsonify({"error": f"Unknown dataset: {dataset}"}), 404
 
@@ -490,6 +494,15 @@ def create_app(port=8899):
         if not entry:
             return jsonify({"error": "Video not found"}), 404
 
+        # Prefer compressed proxy (H.264, browser-compatible) over original
+        sd = resolve_sample_path(datasets_dir, dataset, video_name)
+        proxy_prefs = ["compress_720p.mp4", "compress_480p.mp4", "compress_1080p.mp4"]
+        for proxy in proxy_prefs:
+            proxy_path = os.path.join(sd, proxy)
+            if os.path.exists(proxy_path):
+                return send_from_directory(sd, proxy, mimetype="video/mp4")
+
+        # Fall back to original source
         source_path = entry["source_path"]
         if not os.path.exists(source_path):
             return jsonify({"error": f"Video file not found: {source_path}"}), 404
