@@ -13,7 +13,6 @@ datasets/*/samples/
 datasets/*/cache/
 datasets/pexels/manifest.json
 datasets/**/*.backup
-libs/
 
 # Frontend build output
 static/

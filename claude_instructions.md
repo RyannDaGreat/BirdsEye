@@ -682,7 +682,7 @@ All other frontend features carry forward unchanged:
 ├── frontend/
 │   └── src/                  # Svelte app (see Frontend Components section)
 ├── static/                   # vite build output (gitignored)
-├── libs/CommonSource/        # RAFT wrapper (gitignored)
+├── libs/CommonSource/        # git submodule — RAFT wrapper, shared ML utilities
 ├── tests/                    # benchmarks and profiling scripts
 ├── datasets/pexels/          # data (gitignored except manifest)
 ├── user_data/                # favorites.json (gitignored)

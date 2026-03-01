@@ -1,0 +1,3 @@
+[submodule "libs/CommonSource"]
+	path = libs/CommonSource
+	url = https://github.com/RyannDaGreat/CommonSource
