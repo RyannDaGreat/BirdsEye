@@ -42,9 +42,23 @@
 
   onDestroy(() => clearInterval(interval));
 
+  function buildChangeDetails() {
+    if (!initialCounts || !currentCounts) return '';
+    const changes = [];
+    for (const [key, val] of Object.entries(currentCounts)) {
+      const prev = initialCounts[key] || 0;
+      if (val !== prev) {
+        const diff = val - prev;
+        const sign = diff > 0 ? '+' : '';
+        changes.push(`${key}: ${prev} → ${val} (${sign}${diff})`);
+      }
+    }
+    return changes.length ? '<br/>' + changes.join('<br/>') : '';
+  }
+
   $: tooltipText = hasNewData
-    ? '<strong>New data available</strong><br/>The server has detected new processed samples since this page loaded. Click to reload and see the latest data.'
-    : '<strong>Data up to date</strong><br/>Polling the server every 30 seconds for new processed samples. No changes detected.';
+    ? '<strong>New data available</strong>' + buildChangeDetails() + '<br/><em>Click to reload</em>'
+    : '<strong>Data up to date</strong><br/>Polling every 30s for new samples.';
 </script>
 
 {#if hasNewData}
