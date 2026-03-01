@@ -390,6 +390,8 @@ def create_app(port=8899):
         # Collect values per field from results
         fields = {}
         for r in results:
+            if "score" in r and isinstance(r["score"], (int, float)):
+                fields.setdefault("score", []).append(r["score"])
             for source in [r.get("metadata") or {}, r.get("stats") or {}]:
                 for k, v in source.items():
                     if isinstance(v, (int, float)):
