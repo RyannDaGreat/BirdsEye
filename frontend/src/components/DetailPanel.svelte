@@ -3,7 +3,7 @@
   import { formatNumber, collectVideoFields, highlightTerms } from '../lib/format.js';
   import { fieldLabel, fieldDescription } from '../lib/fields.js';
   import SafeImage from './widgets/SafeImage.svelte';
-  import Popover from './widgets/Popover.svelte';
+  import FieldBar from './widgets/FieldBar.svelte';
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
@@ -80,13 +80,11 @@
     <div class="metadata">
       {#each allFields as { key, value }}
         {@const desc = fieldDescription(key)}
-        {#if desc}
-          <Popover text={'<strong>' + fieldLabel(key) + '</strong><br/>' + desc}>
-            <span slot="trigger" class="meta-item meta-has-desc">{fieldLabel(key)}: {formatNumber(value)}</span>
-          </Popover>
-        {:else}
-          <span class="meta-item">{fieldLabel(key)}: {formatNumber(value)}</span>
-        {/if}
+        <FieldBar
+          label={fieldLabel(key)}
+          value={formatNumber(value)}
+          tooltip={desc ? '<strong>' + fieldLabel(key) + '</strong><br/>' + desc : ''}
+        />
       {/each}
     </div>
 
@@ -160,8 +158,7 @@
   .toolbar-btn:hover { color: var(--text); border-color: var(--text-dim); }
   .toolbar-btn.fav-active { color: #e74c3c; border-color: #e74c3c; }
 
-  .metadata { display: flex; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-md); margin-bottom: var(--space-md); }
-  .meta-has-desc { cursor: help; }
+  .metadata { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-md); margin-bottom: var(--space-md); }
 
   .frames-row { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
   .frame-cell { flex: 1; min-width: 0; text-align: center; }

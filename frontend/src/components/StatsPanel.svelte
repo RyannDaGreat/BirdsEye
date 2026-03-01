@@ -3,6 +3,7 @@
   import { collectNumericFields, summarize } from '../lib/stats.js';
   import { formatNumber } from '../lib/format.js';
   import { fieldLabel } from '../lib/fields.js';
+  import FieldBar from './widgets/FieldBar.svelte';
 
   $: resultsFields = $showStats ? collectNumericFields($currentResults) : {};
   $: selectedItems = $showStats ? $currentResults.filter(r => $selectedVideos.has(r.video_name)) : [];
@@ -18,13 +19,10 @@
     <div class="stats-row">
       {#each Object.entries(resultsFields) as [key, vals]}
         {@const s = summarize(vals)}
-        <span class="stat-chip">
-          <span class="label">{fieldLabel(key)}:</span>
-          <span class="value">{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})</span>
-        </span>
+        <FieldBar label={fieldLabel(key)} value="{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})" />
       {/each}
       {#if Object.keys(resultsFields).length === 0}
-        <span class="stat-chip">No numeric stats available</span>
+        <FieldBar label="Stats" value="No numeric data available" />
       {/if}
     </div>
   </div>
@@ -34,10 +32,7 @@
       <div class="stats-row">
         {#each Object.entries(selectedFields) as [key, vals]}
           {@const s = summarize(vals)}
-          <span class="stat-chip">
-            <span class="label">{fieldLabel(key)}:</span>
-            <span class="value">{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})</span>
-          </span>
+          <FieldBar label={fieldLabel(key)} value="{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})" />
         {/each}
       </div>
     </div>
@@ -48,10 +43,4 @@
   .stats-section { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 200px; }
   .section-title { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: var(--space-xs); }
   .stats-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
-  .stat-chip {
-    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    padding: var(--space-xs) var(--space-sm); font-size: var(--font-size-xs); color: var(--text); white-space: nowrap;
-  }
-  .stat-chip .label { color: var(--text-dim); }
-  .stat-chip .value { color: var(--accent); margin-left: var(--space-xs); }
 </style>

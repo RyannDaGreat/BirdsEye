@@ -28,6 +28,7 @@
 | **Ingest** | The processor that opens the best proxy video once via PyAV and extracts all frame-based artifacts (thumbnails, sprite sheet) plus metadata. Depends on compress. All downstream processors work on these extracted files, never touching the raw video again. |
 | **Enriched** | A search result with `metadata` and `stats` dicts attached by the server before returning to frontend. |
 | **Hull** | Convex hull search. Finds videos nearest to the centroid of selected videos' embeddings. |
+| **Field Bar** | A UI chip showing a field label (dim) and value (accent). Shared component (`FieldBar.svelte`) used in both stats panel and detail panel. Two parts: label (gray, left) and value (blue/accent, right). |
 | **Ternary Filter** | A 3-state UI toggle cycling Any → Only → None. Used for thumbnail and favorites filtering. |
 | **Caption** | AI-generated text description of a video from the raw Pexels metadata. |
 | **FZF** | Fuzzy finder syntax used for text search. Space=AND, `\|`=OR, `!`=NOT, `'quoted'`=exact phrase. |
