@@ -80,49 +80,35 @@ class OpenHumanVidDataset(VideoDataset):
         local = csv_path_field.replace("clips/", "") + ".mp4"
         return os.path.join(OPENHUMANVID_BASE, local)
 
-    def _scan_available_videos(self):
-        """
-        Build set of available clip_ids by scanning extracted part directories.
-        Much faster than per-file os.path.exists() on NFS (one ls per shard dir
-        vs 200K stat calls).
-        """
-        available = set()
-        for part_dir in sorted(glob.glob(os.path.join(OPENHUMANVID_BASE, "part_*"))):
-            if not os.path.isdir(part_dir):
-                continue
-            for s1 in os.listdir(part_dir):
-                s1_path = os.path.join(part_dir, s1)
-                if not os.path.isdir(s1_path):
-                    continue
-                for s2 in os.listdir(s1_path):
-                    s2_path = os.path.join(s1_path, s2)
-                    if not os.path.isdir(s2_path):
-                        continue
-                    for fname in os.listdir(s2_path):
-                        if fname.endswith(".mp4"):
-                            available.add(fname[:-4])  # clip_id without .mp4
-        return available
+    def _find_extracted_parts(self):
+        """Find which part directories are extracted (fast: just ls top-level)."""
+        parts = []
+        for name in sorted(os.listdir(OPENHUMANVID_BASE)):
+            if name.startswith("part_") and os.path.isdir(os.path.join(OPENHUMANVID_BASE, name)):
+                parts.append(name)
+        return parts
 
     def entries(self):
         """
-        Read entries from all CSVs. Only includes videos that exist on disk.
+        Read entries from CSVs for extracted parts only. Assumes all videos in
+        extracted parts exist (avoids per-file stat on NFS which is prohibitively slow).
         Each entry has: video_name, caption, source_path, plus all 7 numeric fields.
         """
-        print("  Scanning available videos...")
-        available = self._scan_available_videos()
-        print(f"  Found {len(available)} videos on disk")
+        extracted = set(self._find_extracted_parts())
+        print(f"  Extracted parts: {sorted(extracted)}")
 
         result = []
         for csv_path in self._csv_paths():
+            # Only include entries whose part is extracted
+            part_name = os.path.basename(csv_path).replace("OpenHumanVid_", "").replace(".csv", "")
+            if part_name not in extracted:
+                continue
+
             with open(csv_path) as f:
                 for row in csv.DictReader(f):
-                    clip_id = row["clip_id"]
-                    if clip_id not in available:
-                        continue
-
                     video_file = self._video_path(row["path"])
                     entry = {
-                        "video_name": clip_id,
+                        "video_name": row["clip_id"],
                         "caption": row["caption"],
                         "source_path": os.path.abspath(video_file),
                     }
