@@ -2,7 +2,7 @@
   import { showStats, currentResults, selectedVideos } from '../lib/stores.js';
   import { collectNumericFields, summarize } from '../lib/stats.js';
   import { formatNumber } from '../lib/format.js';
-  import { fieldLabel } from '../lib/fields.js';
+  import { fieldLabel, fieldDescription } from '../lib/fields.js';
   import FieldBar from './widgets/FieldBar.svelte';
 
   $: resultsFields = $showStats ? collectNumericFields($currentResults) : {};
@@ -19,7 +19,9 @@
     <div class="stats-row">
       {#each Object.entries(resultsFields) as [key, vals]}
         {@const s = summarize(vals)}
-        <FieldBar label={fieldLabel(key)} value="{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})" />
+        {@const desc = fieldDescription(key)}
+        <FieldBar label={fieldLabel(key)} value="{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})"
+                  tooltip={desc ? '<strong>' + fieldLabel(key) + '</strong><br/>' + desc : ''} />
       {/each}
       {#if Object.keys(resultsFields).length === 0}
         <FieldBar label="Stats" value="No numeric data available" />
@@ -32,7 +34,9 @@
       <div class="stats-row">
         {#each Object.entries(selectedFields) as [key, vals]}
           {@const s = summarize(vals)}
-          <FieldBar label={fieldLabel(key)} value="{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})" />
+          {@const desc = fieldDescription(key)}
+          <FieldBar label={fieldLabel(key)} value="{fmt(s.mean)} ({fmt(s.min)}..{fmt(s.max)})"
+                    tooltip={desc ? '<strong>' + fieldLabel(key) + '</strong><br/>' + desc : ''} />
         {/each}
       </div>
     </div>
