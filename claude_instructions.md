@@ -1616,6 +1616,212 @@ Implementation steps:
 
 ---
 
+## How to Add a New Dataset Plugin (Step-by-Step)
+
+### 1. Create the directory and module
+
+```bash
+mkdir -p datasets/my_dataset
+```
+
+Create `datasets/my_dataset/__init__.py`:
+
+```python
+"""
+My Dataset — description of the dataset.
+"""
+import csv
+import os
+from datasets import VideoDataset
+
+# Path to external source (if videos need to be hardlinked from elsewhere)
+SOURCE_DIR = "/path/to/external/videos"
+
+class MyDataset(VideoDataset):
+    name = "my_dataset"           # Must match folder name
+    human_name = "My Dataset"     # Shown in frontend dropdown
+    fields = {}                   # Dataset-native fields (see below)
+    help_text = (
+        "Description shown in the frontend help panel. "
+        "Origin, format, size, characteristics."
+    )
+
+    def entries(self):
+        """Return list of {video_name, caption, source_path} dicts."""
+        csv_path = os.path.join(os.path.dirname(__file__), "data.csv")
+        videos_dir = os.path.join(os.path.dirname(__file__), "videos")
+        result = []
+        with open(csv_path) as f:
+            for row in csv.DictReader(f):
+                video_file = os.path.join(videos_dir, f"{row['id']}.mp4")
+                if os.path.exists(video_file):
+                    result.append({
+                        "video_name": row["id"],
+                        "caption": row["description"],
+                        "source_path": os.path.abspath(video_file),
+                    })
+        return result
+
+    def prepare(self):
+        """Hardlink videos from external source. Idempotent."""
+        videos_dir = os.path.join(os.path.dirname(__file__), "videos")
+        os.makedirs(videos_dir, exist_ok=True)
+        # Read your source data, hardlink each video:
+        # os.link(src, dst) with symlink fallback
+```
+
+### 2. Copy source data into the dataset folder
+
+Place your CSV/JSON/metadata files in `datasets/my_dataset/`. These are gitignored
+by `datasets/**/*.csv` pattern. The `__init__.py` is tracked.
+
+### 3. Prepare and build manifest
+
+```bash
+uv run python prepare_dataset.py my_dataset
+```
+
+This runs `prepare()` (hardlinks videos) and `build_manifest()` (writes manifest.json).
+
+### 4. Process videos
+
+```bash
+uv run python preprocess/process_all.py \
+    --process=ingest \
+    --dataset_dir=datasets/my_dataset \
+    --manifest=datasets/my_dataset/manifest.json \
+    --batch_size=100
+```
+
+Use `--process=ingest` for basic processing (compress + ingest due to deps).
+Add `--process=clip,phash` etc. for more.
+
+### 5. Verify
+
+```bash
+uv run python -c "
+from server.app import load_dataset
+ds = load_dataset('my_dataset', 'datasets')
+print(f'Loaded: {len(ds[\"entries\"])} entries, {len(ds[\"video_metadata\"] or {})} metadata')
+"
+```
+
+### Common Pitfalls
+
+- **`name` must match folder name** — `datasets/web360/` → `name = "web360"`
+- **`entries()` must return dicts with `video_name`, `caption`, `source_path`** — these
+  are required by `VideoDataset`. Missing fields → `ValueError` from `validate_entries()`.
+- **Videos must exist on disk** — `source_path` must point to real files. Use hardlinks
+  in `prepare()` for self-containment.
+- **Field name collisions** — Dataset field names cannot match any processor field name.
+  Checked at server boot. If collision, rename the field in your dataset module.
+- **Manifest.json is auto-generated** — Don't hand-edit it. Edit `entries()` instead.
+- **CSV/data files are gitignored** — Track `__init__.py`, not the raw data.
+
+---
+
+## How to Add a New Processor Plugin (Step-by-Step)
+
+### 1. Create the processor file
+
+Create `preprocess/processors/my_processor.py`:
+
+```python
+"""
+My Processor — what it computes, why, how.
+"""
+import os
+import json
+import fire
+from preprocess.processors.base import Processor, run_pool_with_progress
+from preprocess.video_utils import sample_dir, save_json_atomic
+
+class MyProcessor(Processor):
+    name = "my_proc"
+    human_name = "My Processor"
+    depends_on = ["ingest"]       # Must run after ingest (needs thumbnails)
+
+    artifacts = [
+        {"filename": "my_stats.json", "label": "My Stats",
+         "description": "Computed statistics", "type": "data"},
+    ]
+
+    fields = {
+        "my_field": {"label": "My Field", "description": "What this measures",
+                     "dtype": "float"},
+    }
+
+    aggregation = [
+        {"type": "json_dict", "source": "my_stats.json",
+         "target": "video_stats.json"},
+    ]
+
+    def process(self, entries, dataset_dir, workers=32):
+        args = [(e, dataset_dir) for e in entries]
+        run_pool_with_progress(_worker, args, self.human_name, workers)
+
+def _worker(args):
+    entry, dataset_dir = args
+    sd = sample_dir(dataset_dir, entry["video_name"])
+    # ... compute something ...
+    save_json_atomic({"my_field": 42.0}, os.path.join(sd, "my_stats.json"))
+    return entry["video_name"], True, None
+
+if __name__ == "__main__":
+    fire.Fire({"main": MyProcessor.cli_main})
+```
+
+### 2. That's it — it auto-discovers
+
+`discover_processors()` scans the directory. No registration needed.
+
+### 3. Run it
+
+```bash
+uv run python preprocess/process_all.py --process=my_proc --dataset_dir=datasets/pexels
+```
+
+Dependencies are auto-resolved (ingest → compress will also run if needed).
+
+### Embedding Processor (with text search)
+
+To add a new embedding model that supports text search:
+
+```python
+class MyEmbeddingProcessor(Processor):
+    name = "my_embed"
+    embedding_space = {
+        "prefix": "my_embed",
+        "dim": 768,
+        "model": "my-model-name",
+        "description": "My embedding model description",
+    }
+
+    aggregation = [
+        {"type": "vector_index", "source": "my_embedding.npy",
+         "prefix": "my_embed", "dim": 768},
+    ]
+
+    @staticmethod
+    def encode_text(query):
+        \"\"\"Encode text into embedding space. Lazy-load model.\"\"\"
+        # ... load model, tokenize, encode, return (768,) float32 ...
+```
+
+The server auto-discovers it. The frontend auto-adds a mode tab for it.
+
+### Common Pitfalls
+
+- **Artifact filenames must be unique across all processors** — Validated at boot.
+- **Field names must be unique across all processors AND datasets** — Validated at boot.
+- **GPU processors must use subprocess isolation** — Use `run_gpu_subprocess()` from base.
+- **All JSON writes must use `save_json_atomic()`** — For crash safety on NFS.
+- **Fire CLI at the bottom is required** — Enables standalone execution.
+- **`process()` must only touch the given entries** — Never scan all samples.
+- **`depends_on` must list real processor names** — Circular deps are detected and error.
+
+---
+
 ## Upcoming: Dataset Plugin Architecture
 
 ### Motivation
