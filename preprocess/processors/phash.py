@@ -13,7 +13,7 @@ from PIL import Image
 import fire
 
 from preprocess.processors.base import Processor, run_pool_with_progress
-from preprocess.video_utils import sample_dir, split_grid, summarize_sequence, sequence_variability
+from preprocess.video_utils import sample_dir, split_grid, summarize_sequence, sequence_variability, save_json_atomic
 from preprocess.processors.ingest import SPRITE_COLS, SPRITE_ROWS
 
 
@@ -46,8 +46,7 @@ def _compute_phash(args):
         "phash_temporal_std": sequence_variability(dists_float),
     }
 
-    with open(out_path, "w") as f:
-        json.dump(stats, f, indent=2)
+    save_json_atomic(stats, out_path)
 
     return (video_name, True, None)
 

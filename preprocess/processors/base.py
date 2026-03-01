@@ -17,7 +17,7 @@ from multiprocessing import Pool
 
 from tqdm import tqdm
 
-from preprocess.video_utils import sample_dir
+from preprocess.video_utils import sample_dir, save_json_atomic
 
 
 class Processor(ABC):
@@ -150,13 +150,12 @@ class Processor(ABC):
 
         origins_path = os.path.join(sd, "origins.json")
         if not os.path.exists(origins_path):
-            with open(origins_path, "w") as f:
-                json.dump({
-                    "video_name": entry["video_name"],
-                    "caption": entry.get("caption", ""),
-                    "source_path": entry["source_path"],
-                    "dataset": os.path.basename(dataset_dir),
-                }, f, indent=2)
+            save_json_atomic({
+                "video_name": entry["video_name"],
+                "caption": entry.get("caption", ""),
+                "source_path": entry["source_path"],
+                "dataset": os.path.basename(dataset_dir),
+            }, origins_path)
 
         link_path = os.path.join(sd, "video.mp4")
         if not os.path.exists(link_path) and os.path.exists(entry["source_path"]):

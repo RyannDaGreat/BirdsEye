@@ -26,7 +26,7 @@ from tqdm import tqdm
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
-from preprocess.video_utils import load_json, save_json_atomic
+from preprocess.video_utils import load_json, save_json_atomic, save_npz_atomic, save_faiss_atomic
 
 
 # ========================================================================
@@ -241,15 +241,15 @@ def aggregate_vector_index(rule, new_samples, cache_dir, clear_cache):
         all_embs = np.concatenate([name_to_emb[n] for n in all_names], axis=0)
         print(f"  Total {prefix} vectors: {len(all_names)} ({all_embs.shape})")
 
-        # Save embeddings + names
-        np.savez_compressed(emb_path, embeddings=all_embs)
+        # Save embeddings + names (atomic writes for crash safety)
+        save_npz_atomic(emb_path, embeddings=all_embs)
         save_json_atomic(all_names, names_path)
 
         # Build FAISS index
         embs_f32 = all_embs.astype(np.float32)
         index = faiss.IndexFlatIP(embs_f32.shape[1])
         index.add(embs_f32)
-        faiss.write_index(index, index_path)
+        save_faiss_atomic(index, index_path)
         print(f"  Built {prefix} FAISS index: {index.ntotal} vectors")
         return len(all_names)
     else:

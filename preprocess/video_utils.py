@@ -98,19 +98,59 @@ def sequence_variability(values):
 # I/O utilities
 # ========================================================================
 
-def save_json_atomic(data, path):
-    """Atomic JSON save: temp file + rename. Safe for NFS."""
+def atomic_write(path, writer_fn, suffix=".tmp"):
+    """
+    Atomic file write: create temp in same directory, write, rename.
+
+    writer_fn(tmp_path) performs the actual write. os.rename is atomic on
+    POSIX when source and dest are on the same filesystem — guaranteed here
+    because mkstemp uses dir=target_dir.
+
+    CRITICAL: Never use tempfile.mkstemp() without dir= for atomic writes.
+    If the temp file lands on a different mount (e.g. /tmp vs NFS), rename
+    becomes a copy+delete and is NOT atomic.
+    """
     dir_name = os.path.dirname(path) or "."
     os.makedirs(dir_name, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=suffix)
+    os.close(fd)
     try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f)
+        writer_fn(tmp)
         os.rename(tmp, path)
     except Exception:
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+def save_json_atomic(data, path):
+    """Atomic JSON save: temp file + rename. Safe for NFS."""
+    def write(tmp):
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+    atomic_write(path, write)
+
+
+def save_npy_atomic(array, path):
+    """Atomic numpy .npy save: temp file + rename. Safe for NFS."""
+    def write(tmp):
+        np.save(tmp, array)
+    atomic_write(path, write, suffix=".tmp.npy")
+
+
+def save_npz_atomic(path, **arrays):
+    """Atomic numpy .npz save: temp file + rename. Safe for NFS."""
+    def write(tmp):
+        np.savez_compressed(tmp, **arrays)
+    atomic_write(path, write, suffix=".tmp.npz")
+
+
+def save_faiss_atomic(index, path):
+    """Atomic FAISS index save: temp file + rename. Safe for NFS."""
+    import faiss
+    def write(tmp):
+        faiss.write_index(index, tmp)
+    atomic_write(path, write, suffix=".tmp.faiss")
 
 
 def load_json(path):

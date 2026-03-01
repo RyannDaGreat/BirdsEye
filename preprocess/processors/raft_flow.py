@@ -14,7 +14,7 @@ import numpy as np
 import fire
 
 from preprocess.processors.base import Processor, run_gpu_subprocess, distribute_across_gpus
-from preprocess.video_utils import split_grid, summarize_sequence, sequence_variability
+from preprocess.video_utils import split_grid, summarize_sequence, sequence_variability, save_json_atomic
 from preprocess.processors.ingest import SPRITE_COLS, SPRITE_ROWS
 
 
@@ -127,8 +127,7 @@ def _gpu_worker_fn(args):
                     "flow_temporal_std": sequence_variability(magnitudes),
                 }
 
-                with open(os.path.join(sd, "flow_stats.json"), "w") as f:
-                    json.dump(stats, f, indent=2)
+                save_json_atomic(stats, os.path.join(sd, "flow_stats.json"))
 
             except Exception as e:
                 log(f"  FAIL {video_name}: {e}")

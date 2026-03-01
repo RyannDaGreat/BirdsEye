@@ -16,7 +16,7 @@ import numpy as np
 import fire
 
 from preprocess.processors.base import Processor, run_gpu_subprocess, distribute_across_gpus
-from preprocess.video_utils import sample_dir
+from preprocess.video_utils import sample_dir, save_json_atomic, save_npy_atomic
 
 
 CLIP_MODEL = "openai/clip-vit-base-patch32"
@@ -170,14 +170,13 @@ def _gpu_worker_fn(args):
             for frame_idx in range(3):
                 if (j, frame_idx) in emb_map:
                     emb = emb_map[(j, frame_idx)]
-                    np.save(os.path.join(sd, frame_files[frame_idx]), emb)
+                    save_npy_atomic(emb, os.path.join(sd, frame_files[frame_idx]))
                     valid_embeddings.append(emb)
 
             if valid_embeddings:
                 stacked = np.stack([e.astype(np.float32) for e in valid_embeddings])
                 clip_std = mean_pairwise_cosine_distance(stacked)
-                with open(os.path.join(sd, "clip_std.json"), "w") as f:
-                    json.dump({"clip_std": clip_std}, f)
+                save_json_atomic({"clip_std": clip_std}, os.path.join(sd, "clip_std.json"))
 
         done += len(chunk)
         log(f"{done}/{len(samples)} samples ({done * 100 // len(samples)}%)")

@@ -18,6 +18,7 @@ import numpy as np
 import fire
 
 from preprocess.processors.base import Processor, run_pool_with_progress
+from preprocess.video_utils import save_json_atomic
 
 
 # ========================================================================
@@ -330,8 +331,7 @@ def _process_one(args):
         proxy_meta["duration"] = round(proxy_meta["frame_count"] / max(proxy_meta["fps"], 1e-6), 3)
         proxy_meta["file_size_mb"] = round(os.path.getsize(entry["source_path"]) / (1024 * 1024), 2)
         proxy_meta["num_frames"] = proxy_meta.pop("frame_count")
-        with open(meta_path, "w") as f:
-            json.dump(proxy_meta, f, indent=2)
+        save_json_atomic(proxy_meta, meta_path)
 
     return (video_name, True, None)
 
