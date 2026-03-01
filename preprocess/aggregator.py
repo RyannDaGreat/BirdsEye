@@ -141,7 +141,7 @@ def aggregate_json_dict(target_name, source_files, new_samples, cache_dir, clear
         clear_cache: if True, ignore existing cache file
 
     Returns:
-        int — total entries in the output dict
+        (int, set) — (total entries in output dict, set of sample IDs that contributed data)
     """
     target_path = os.path.join(cache_dir, target_name)
 
@@ -154,6 +154,7 @@ def aggregate_json_dict(target_name, source_files, new_samples, cache_dir, clear
     proc_names = [p for _, p in source_files]
     desc = f"{target_name} ({', '.join(proc_names)})"
 
+    included_sids = set()
     for sid, path in tqdm(new_samples, desc=desc):
         vname = video_name_from_sample_id(sid)
         sample_data = {}
@@ -166,10 +167,11 @@ def aggregate_json_dict(target_name, source_files, new_samples, cache_dir, clear
                 merged[vname].update(sample_data)
             else:
                 merged[vname] = sample_data
+            included_sids.add(sid)
 
     save_json_atomic(merged, target_path)
     print(f"  Saved {target_name}: {len(merged)} entries")
-    return len(merged)
+    return len(merged), included_sids
 
 
 def aggregate_vector_index(rule, new_samples, cache_dir, clear_cache):
@@ -187,7 +189,7 @@ def aggregate_vector_index(rule, new_samples, cache_dir, clear_cache):
         clear_cache: if True, ignore existing cache files
 
     Returns:
-        int — total vectors in the index
+        (int, set) — (total vectors in index, set of sample IDs that contributed vectors)
     """
     import faiss
 
@@ -222,6 +224,7 @@ def aggregate_vector_index(rule, new_samples, cache_dir, clear_cache):
     # Read new vectors — overwrites existing (dedup) or adds new
     added = 0
     updated = 0
+    included_sids = set()
     for sid, path in tqdm(new_samples, desc=f"{prefix} vectors"):
         vname = video_name_from_sample_id(sid)
         vec = read_sample_numpy(path, source)
@@ -231,6 +234,7 @@ def aggregate_vector_index(rule, new_samples, cache_dir, clear_cache):
             else:
                 added += 1
             name_to_emb[vname] = vec.reshape(1, -1).astype(np.float16)
+            included_sids.add(sid)
 
     if updated:
         print(f"  {prefix}: {added} new, {updated} updated (dedup)")
@@ -251,10 +255,10 @@ def aggregate_vector_index(rule, new_samples, cache_dir, clear_cache):
         index.add(embs_f32)
         save_faiss_atomic(index, index_path)
         print(f"  Built {prefix} FAISS index: {index.ntotal} vectors")
-        return len(all_names)
+        return len(all_names), included_sids
     else:
         print(f"  No {prefix} vectors found")
-        return 0
+        return 0, included_sids
 
 
 # ========================================================================
@@ -321,26 +325,37 @@ def aggregate(dataset_dir="datasets/pexels", clear_cache=False, sample_list=None
         active = all_processors
     json_dict_rules, vector_index_rules = collect_aggregation_rules(active)
 
-    # 4. Run json_dict aggregations
+    # 4. Run json_dict aggregations — track which samples actually contributed
     json_counts = {}
+    all_successful_sids = set()
     for target_name, source_files in sorted(json_dict_rules.items()):
         print(f"\nAggregating {target_name}...")
-        count = aggregate_json_dict(target_name, source_files, new_samples, cache_dir, clear_cache)
+        count, included = aggregate_json_dict(target_name, source_files, new_samples, cache_dir, clear_cache)
         json_counts[target_name] = count
+        all_successful_sids |= included
 
     # 5. Run vector_index aggregations
     vector_counts = {}
     for rule in vector_index_rules:
         prefix = rule["prefix"]
         print(f"\nAggregating {prefix} vectors...")
-        count = aggregate_vector_index(rule, new_samples, cache_dir, clear_cache)
+        count, included = aggregate_vector_index(rule, new_samples, cache_dir, clear_cache)
         vector_counts[prefix] = count
+        all_successful_sids |= included
 
     # 6. Save cache manifest
+    # D3: Only mark samples as included if they actually contributed data.
+    # D4: Scoped aggregation (only_processors) updates cache but doesn't claim
+    #     full inclusion — re-aggregation of included samples is idempotent.
+    if only_processors is not None:
+        final_included = sorted(prev_names)
+    else:
+        final_included = sorted(prev_names | all_successful_sids)
+
     manifest = {
-        "samples_included": all_sids,
+        "samples_included": final_included,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "total_samples": len(all_sids),
+        "total_samples": len(final_included),
         "json_dicts": {name: {"count": count} for name, count in json_counts.items()},
         "vector_indices": {
             prefix: {"count": count, "dim": rule["dim"]}
@@ -350,7 +365,7 @@ def aggregate(dataset_dir="datasets/pexels", clear_cache=False, sample_list=None
         },
     }
     save_json_atomic(manifest, manifest_path)
-    print(f"\nCache manifest saved: {len(all_sids)} samples included")
+    print(f"\nCache manifest saved: {len(final_included)} samples included")
     print(f"  JSON dicts: {json_counts}")
     print(f"  Vector indices: {vector_counts}")
     print("Aggregation complete.")
