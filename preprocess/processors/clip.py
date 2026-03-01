@@ -207,10 +207,63 @@ def gpu_worker(list_path, model=CLIP_MODEL, forward_batch=FORWARD_BATCH):
 # Processor class
 # ========================================================================
 
+# ========================================================================
+# Text encoder — lazy-loaded singleton for query-time encoding
+# ========================================================================
+
+_text_model = None
+_text_tokenizer = None
+
+
+def _ensure_text_encoder():
+    """Load CLIP text encoder on first use (lazy singleton)."""
+    global _text_model, _text_tokenizer
+    if _text_model is None:
+        import torch
+        from transformers import CLIPModel, CLIPTokenizerFast
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        print(f"Loading CLIP text encoder on {device}...")
+        _text_model = CLIPModel.from_pretrained(CLIP_MODEL).to(device).eval()
+        _text_tokenizer = CLIPTokenizerFast.from_pretrained(CLIP_MODEL)
+        print("CLIP text encoder ready.")
+
+
 class ClipProcessor(Processor):
     name = "clip"
     human_name = "CLIP Embeddings"
     depends_on = ["ingest"]
+
+    embedding_space = {
+        "prefix": "clip",
+        "dim": CLIP_DIM,
+        "model": CLIP_MODEL,
+        "description": "CLIP ViT-B/32 cosine similarity",
+    }
+
+    @staticmethod
+    def encode_text(query):
+        """
+        Encode a text query into CLIP embedding space. Lazy-loads model on first call.
+
+        Returns (512,) float32 ndarray, L2-normalized.
+
+        str -> (512,) float32
+
+        >>> isinstance(ClipProcessor.encode_text("sunset over ocean"), np.ndarray)
+        True
+        """
+        import torch
+        _ensure_text_encoder()
+        device = next(_text_model.parameters()).device
+        inputs = _text_tokenizer(
+            [query], return_tensors="pt", padding=True, truncation=True, max_length=77
+        )
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.no_grad():
+            text_out = _text_model.text_model(**inputs)
+            text_features = _text_model.text_projection(text_out.pooler_output)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        return text_features.cpu().numpy().astype(np.float32).flatten()
 
     artifacts = [
         {"filename": "clip_embedding.npy", "label": "CLIP Embedding (middle)", "description": "512-dim float16 L2-normalized embedding of thumb_middle.jpg. Model: openai/clip-vit-base-patch32.", "type": "data"},

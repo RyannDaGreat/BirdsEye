@@ -57,6 +57,12 @@ class Processor(ABC):
                               values get merged per video. vector_index is per-processor; the
                               prefix must be unique across all processors.
 
+        embedding_space: dict — Optional metadata for embedding-based search. If set,
+                                declares that this processor produces a vector index with a
+                                text encoder. Keys: prefix, dim, model, description.
+                                Processors with embedding_space should also override
+                                encode_text() to provide query-time text encoding.
+
     Subclasses MUST implement:
         process(entries, dataset_dir, workers) — process ONLY the given entries.
 
@@ -103,6 +109,7 @@ class Processor(ABC):
     artifacts: list = []     # [{filename, label, description, type}]
     fields: dict = {}        # {field_name: {label, description}}
     aggregation: list = []   # [{type, source, target/prefix, ...}]
+    embedding_space: dict = None  # Optional: {prefix, dim, model, description}
 
     def __init_subclass__(cls, **kwargs):
         """Validate that subclasses define required class attributes."""
@@ -115,6 +122,20 @@ class Processor(ABC):
                 raise TypeError(
                     f"Processor subclass {cls.__name__} must define class attribute '{attr}'"
                 )
+
+    @staticmethod
+    def encode_text(query):
+        """
+        Encode a text query into this processor's embedding space.
+
+        Override in subclasses that produce vector indices with text-searchable
+        embeddings. Returns (D,) float32 ndarray, L2-normalized. Returns None
+        if not supported (default).
+
+        >>> Processor.encode_text("hello") is None
+        True
+        """
+        return None
 
     def needs_processing(self, sample_directory):
         """

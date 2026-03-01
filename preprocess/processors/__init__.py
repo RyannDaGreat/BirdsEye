@@ -172,6 +172,26 @@ def collect_aggregation_rules(processors):
     return json_dict_rules, vector_index_rules
 
 
+def collect_text_encoders(processors):
+    """
+    Discover text encoders from processors that declare embedding_space.
+
+    Returns {prefix: encode_text_callable}.
+
+    Pure function.
+
+    >>> collect_text_encoders({})
+    {}
+    """
+    encoders = {}
+    for proc_name, proc in processors.items():
+        if (getattr(proc, 'embedding_space', None)
+                and type(proc).encode_text is not Processor.encode_text):
+            prefix = proc.embedding_space["prefix"]
+            encoders[prefix] = type(proc).encode_text
+    return encoders
+
+
 def collect_artifact_info(processors):
     """
     Collect all artifact metadata from all processors, split by type.

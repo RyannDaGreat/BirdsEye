@@ -32,7 +32,6 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
 from server.search import fuzzy_search, clip_search, convex_hull_search, apply_filters, all_numeric_values, sort_results, paginate, bin_values, l2_normalize
-from server.clip_encoder import encode_text
 from preprocess.video_utils import sample_dir, save_json_atomic
 
 
@@ -330,6 +329,13 @@ def create_app(port=8899):
 
     datasets_dir = os.path.join(REPO_ROOT, "datasets")
 
+    # Discover text encoders from processor plugins
+    from preprocess.processors import discover_processors, collect_text_encoders
+    all_procs = discover_processors()
+    text_encoders = collect_text_encoders(all_procs)
+    if text_encoders:
+        print(f"Text encoders available: {list(text_encoders.keys())}")
+
     print("Loading datasets...")
     if os.path.exists(datasets_dir):
         for name in sorted(os.listdir(datasets_dir)):
@@ -496,15 +502,14 @@ def create_app(port=8899):
     @app.route("/api/field_info")
     def field_info():
         """All field descriptions and artifact metadata from processor plugins."""
-        from preprocess.processors import discover_processors, collect_field_info, collect_artifact_info
+        from preprocess.processors import collect_field_info, collect_artifact_info
 
-        all_procs = discover_processors()
         plugin_fields = collect_field_info(all_procs)
         image_artifacts, data_artifacts = collect_artifact_info(all_procs)
 
         # Server-only fields (not from any processor)
         all_fields = {
-            "score": {"label": "Score (CLIP)", "description": "Cosine similarity (inner product of L2-normalized vectors) between the CLIP text embedding of the search query and the CLIP image embedding of the video's middle frame. Model: openai/clip-vit-base-patch32 (512-dim). Text encoded at query time, image embeddings pre-computed. Range: ~0 to ~0.4 in practice. Higher = more visually similar to query text.", "dtype": "float"},
+            "score": {"label": "Score", "description": "Cosine similarity between the text embedding of the search query and the image embedding of the video's middle frame. Text encoded at query time, image embeddings pre-computed. Higher = more visually similar to query text.", "dtype": "float"},
         }
         all_fields.update(plugin_fields)
 
@@ -602,10 +607,10 @@ def create_app(port=8899):
             for r in results
         ]
 
-        # Compute CLIP similarity scores so sort-by-score works in fuzzy mode too
+        # Compute similarity scores so sort-by-score works in fuzzy mode too
         clip_idx = get_vector_index(ds, "clip")
-        if query.strip() and clip_idx is not None:
-            query_emb = encode_text(query)
+        if query.strip() and clip_idx is not None and "clip" in text_encoders:
+            query_emb = text_encoders["clip"](query)
             query_emb = l2_normalize(np.array(query_emb, dtype=np.float32).reshape(1, -1))
             name_to_idx = {n: i for i, n in enumerate(clip_idx["video_names"])}
             for r in formatted:
@@ -641,7 +646,10 @@ def create_app(port=8899):
             available = list(ds.get("vector_indices", {}).keys())
             return jsonify({"error": f"Vector index '{index_name}' not available. Available: {available}"}), 400
 
-        query_emb = encode_text(query)
+        if index_name not in text_encoders:
+            return jsonify({"error": f"No text encoder for index '{index_name}'"}), 400
+
+        query_emb = text_encoders[index_name](query)
         # Return all indexed vectors — pagination handles the windowing
         results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]))
 
