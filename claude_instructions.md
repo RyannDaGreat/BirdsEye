@@ -1133,3 +1133,430 @@ The biggest win is CLIP going from 15min to 30s per batch. The second win is ing
 - `.dirty` files are tiny (empty, just the inode) and gitignored
 
 (See Glossary at top of manifest for all term definitions.)
+
+### Code Audit Fix Plan
+
+Derived from a 10-agent frenzy audit, then each item verified against actual v2 code.
+Prioritized by impact-to-code-added ratio. Minimal additions, maximal robustness.
+
+**Security**: Completely irrelevant. Local-only app, no auth, no internet exposure. Non-concern.
+Never prioritize security work in this project.
+
+**Skipped items** (not worth the code):
+- B3 (export all endpoint) — adds a whole new API endpoint for a rare operation. Not needed.
+- D2 (concurrent aggregation lock) — `fcntl.flock()` is unreliable on NFS/FUSE (may silently
+  not lock, or hang forever). Just don't run two aggregators simultaneously. Add a comment.
+- B6 (underscore split) — only affects dataset names containing underscores. We only have `pexels`.
+- R3 (dataset validation 7x) — each occurrence is one line. Extracting adds a function definition
+  + Flask error handler. More code than it saves.
+- R7 (result formatting 3x) — each is 2-3 lines. Marginal savings.
+- R8 (fieldLabel/fieldDescription/fieldDtype) — three small functions in `frontend/src/lib/fields.js`
+  with different fallback values (`key.replace(/_/g, ' ')` vs `''` vs `'float'`). Clear as-is.
+- SH5 (user_data gitignore) — already works correctly (`/user_data` in .gitignore).
+
+**HALLUCINATED bugs** (reported by audit agents but confirmed NOT real in v2):
+- B1 — "sort_results drops items with missing sort values": `sort_results` already uses
+  `with_val`/`without_val` pattern at search.py:350-358 — missing values go at end, not dropped.
+- B2 — "apply_filters uses continue instead of break": `apply_filters` already uses
+  `passed = False; break` at search.py:280-285.
+- B4 — "SearchHeader sort uses one-shot initializer": Already uses reactive `$:` block with
+  `_lastSort` guard variable in SearchHeader.svelte.
+
+---
+
+#### Step 1: DRY violations (net code reduction)
+
+**R1 — Histogram binning duplicated**
+- Files: `server/app.py` lines 577-583 (`compute_histograms`) and lines 401-408
+  (`compute_result_histograms`)
+- Problem: Identical binning loop in both:
+  ```python
+  bucket_size = (hi - lo) / bins if hi > lo else 1
+  counts = [0] * bins
+  for v in values:
+      idx = min(bins - 1, max(0, int((v - lo) / bucket_size)))
+      counts[idx] += 1
+  ```
+  Only difference: `compute_histograms` computes lo/hi from `min(values)`/`max(values)`,
+  while `compute_result_histograms` reads lo/hi from pre-computed `metadata_stats`.
+  The binning loop itself is character-for-character identical.
+- Fix: Extract to `server/search.py`:
+  ```python
+  def bin_values(values, lo, hi, bins):
+      """
+      Bin numeric values into histogram counts. Pure function.
+      (list[float], float, float, int) → list[int]
+
+      >>> bin_values([1, 2, 3, 4], 0, 4, 4)
+      [1, 1, 1, 1]
+      >>> bin_values([], 0, 10, 5)
+      [0, 0, 0, 0, 0]
+      """
+      bucket_size = (hi - lo) / bins if hi > lo else 1
+      counts = [0] * bins
+      for v in values:
+          idx = min(bins - 1, max(0, int((v - lo) / bucket_size)))
+          counts[idx] += 1
+      return counts
+  ```
+  Both callers pass their own lo/hi and call `bin_values(values, lo, hi, bins)`.
+
+**R2 — searchFuzzy/searchClip identical**
+- File: `frontend/src/lib/api.js` lines 21-33
+- Problem: `searchFuzzy` and `searchClip` are identical except for the URL path segment
+  (`/api/search/fuzzy` vs `/api/search/clip`). Same query string construction, same
+  `checkedJson` call.
+- Fix:
+  ```javascript
+  async function searchWithEndpoint(endpoint, dataset, query, params) {
+    const filterQS = filtersToQueryString(params.filters);
+    const paginationQS = paginationToQueryString(params);
+    const resp = await fetch(
+      `/api/search/${endpoint}?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}`
+    );
+    return checkedJson(resp);
+  }
+  export const searchFuzzy = (d, q, p) => searchWithEndpoint('fuzzy', d, q, p);
+  export const searchClip = (d, q, p) => searchWithEndpoint('clip', d, q, p);
+  ```
+
+**R4 — CLIP_MODEL defined in 2 files**
+- `server/clip_encoder.py:12`: `CLIP_MODEL = "openai/clip-vit-base-patch32"`
+- `preprocess/processors/clip.py:22`: `CLIP_MODEL = "openai/clip-vit-base-patch32"`
+- Fix: Move constant to `preprocess/video_utils.py` (shared utils, imported by both server
+  and preprocess). Both files import from there. Single source of truth.
+
+**R5 — L2 normalization repeated 4x**
+- Verified 4 occurrences in `server/`:
+  1. `app.py:616-618` — single query vector, `norm > 0` guard
+  2. `search.py:150-152` — single query vector, `norm > 0` guard (in `clip_search`)
+  3. `search.py:176-178` — single centroid vector, `norm > 0` guard (in `convex_hull_search`)
+  4. `search.py:182-184` — batch normalization with `np.maximum(norms, 1e-8)` clamp
+- Occurrences 1-3 are identical pattern. Occurrence 4 is a batch version with different
+  zero-handling (clamp instead of skip).
+- Fix: Extract to `server/search.py`:
+  ```python
+  def l2_normalize(vec):
+      """
+      L2-normalize a vector or batch of vectors. Zero vectors unchanged. Pure function.
+      (..., D) float32 → (..., D) float32
+
+      >>> import numpy as np
+      >>> l2_normalize(np.array([3.0, 4.0]))
+      array([0.6, 0.8])
+      >>> l2_normalize(np.array([0.0, 0.0]))
+      array([0., 0.])
+      """
+      norm = np.linalg.norm(vec, axis=-1, keepdims=True)
+      return np.where(norm > 0, vec / norm, vec)
+  ```
+  Works for single vectors (shape `(D,)` or `(1, D)`) and batches (shape `(N, D)`).
+  `np.where` handles the zero-vector case for both. Replace all 4 call sites.
+
+**R6 — GPU logger closure duplicated in 2 processors**
+- `preprocess/processors/clip.py:116-118` and `preprocess/processors/raft_flow.py:75-77`
+- Verified character-for-character identical:
+  ```python
+  def log(msg):
+      ts = datetime.now().strftime("%H:%M:%S")
+      print(f"  [{ts}] GPU {gpu_id}: {msg}", flush=True)
+  ```
+  Both also import `from datetime import datetime` identically.
+- Fix: Add to `preprocess/processors/base.py`:
+  ```python
+  def make_gpu_logger(gpu_id):
+      """Create a timestamped GPU logger closure. Returns callable(msg)."""
+      from datetime import datetime
+      def log(msg):
+          ts = datetime.now().strftime("%H:%M:%S")
+          print(f"  [{ts}] GPU {gpu_id}: {msg}", flush=True)
+      return log
+  ```
+  Both processors: replace the closure + import with `log = make_gpu_logger(gpu_id)`.
+
+#### Step 2: Dead code (pure deletion)
+
+- **DC1**: Delete `sortResults` (line 37) + `mulberry32` (line 22) from `frontend/src/lib/sort.js`.
+  `sortResults` is exported but imported nowhere in the codebase. `mulberry32` is only called
+  by `sortResults`. If the file becomes empty after deletion, delete the file.
+- **DC2**: Delete `selectedCount` from `frontend/src/lib/stores.js:46`.
+  `export const selectedCount = derived(selectedVideos, $s => $s.size)` — exported, never imported.
+- **DC3**: Remove `showExport` from `frontend/src/App.svelte:3` import destructuring.
+  Imported from stores.js but never referenced in the component body or template.
+- **DC4**: Remove `fieldInfo` from `frontend/src/components/SyntaxHelp.svelte:2` import.
+  `import { showHelp, currentSort, fieldInfo }` — `fieldInfo` never used in the file.
+- **DC5**: Delete `let open = false;` from `frontend/src/components/widgets/Popover.svelte:10`
+  and its assignments at lines 45 (`open = true`) and 50 (`open = false`). Variable is written
+  but never read — no `{#if open}`, no binding, no reactive statement consumes it.
+- **DC6**: Delete 3 broken test files that import v1 APIs no longer in v2:
+  - `tests/benchmark_ingest.py` — imports `ensure_sample_dir` from `video_utils` (now a method on Processor)
+  - `tests/bench_pyav_ingest.py` — same broken import
+  - `tests/profile_ingest.py` — imports `resize_by_height`, `compose_sprite`, `resize_contain`
+    from `video_utils` (renamed to `*_cv2` and moved to ingest.py in v2)
+  Keep: `tests/bench_gpu_decode.py`, `tests/bench_gpu_subprocess.py`, `tests/compress_ladder.py`
+  (standalone, no broken imports).
+
+#### Step 3: Tiny high-impact bug fixes
+
+**B5 — Score histogram missing from result histograms** (2 lines)
+- File: `server/app.py:390-396` in `compute_result_histograms`
+- Problem: Collects values from `r.get("metadata")` and `r.get("stats")` but NOT from
+  `r.get("score")`. The `score` field (CLIP cosine similarity) is a top-level key on result
+  dicts, not nested under metadata or stats. So score never appears in result histograms.
+- Fix: Add before the source loop:
+  ```python
+  for r in results:
+      if "score" in r and isinstance(r["score"], (int, float)):
+          fields.setdefault("score", []).append(r["score"])
+      for source in [r.get("metadata") or {}, r.get("stats") or {}]:
+          ...
+  ```
+
+**B7 — os.path.getsize crashes on FUSE** (3 lines)
+- File: `preprocess/processors/ingest.py:331`
+- Problem: `os.path.getsize(entry["source_path"])` raises `OSError` if the FUSE/NFS mount is
+  down or the file disappeared. Kills the entire ingest worker. This is a known transient
+  condition on our S3/FUSE storage — not papering over ignorance.
+- Fix:
+  ```python
+  try:
+      proxy_meta["file_size_mb"] = round(os.path.getsize(entry["source_path"]) / (1024 * 1024), 2)
+  except OSError as e:
+      print(f"    WARNING: getsize failed for {entry['video_name']}: {e}")
+      proxy_meta["file_size_mb"] = None
+  ```
+
+**D5 — Zero vectors pollute FAISS index** (2 lines)
+- File: `preprocess/processors/clip.py:173-175`
+- Problem: When an image fails to load, `_load_image` returns None, so it's excluded from
+  the CLIP forward pass. But at line 173, `emb_map.get((j, frame_idx), np.zeros(CLIP_DIM, ...))`
+  falls back to a zero vector for missing frames. Line 175 saves this zero vector to the .npy
+  file unconditionally. The aggregator reads it, adds it to FAISS → garbage similarity scores.
+- Fix: Check `emb_map` membership before saving, not a norm check:
+  ```python
+  if (j, frame_idx) in emb_map:
+      np.save(os.path.join(sd, frame_files[frame_idx]), emb)
+  ```
+  The aggregator already handles missing .npy files (no file = no vector added).
+  This also means `clip_std` should only be computed from valid embeddings — guard similarly.
+
+#### Step 4: Atomic writes (prevents cache corruption on crash)
+
+**D1 — Non-atomic FAISS/npz writes in aggregator**
+- `aggregator.py:245`: `np.savez_compressed(emb_path, embeddings=all_embs)` — direct write
+- `aggregator.py:252`: `faiss.write_index(index, index_path)` — direct write
+- If process crashes mid-write, cache file is half-written garbage. Server loads it on boot.
+- Fix: Add to `preprocess/video_utils.py` (alongside existing `save_json_atomic`):
+  ```python
+  def save_npz_atomic(path, **arrays):
+      """Atomic npz save: temp file + rename. Safe on NFS."""
+      dir_name = os.path.dirname(path) or "."
+      os.makedirs(dir_name, exist_ok=True)
+      fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp.npz")
+      os.close(fd)
+      try:
+          np.savez_compressed(tmp, **arrays)
+          os.rename(tmp, path)
+      except Exception:
+          if os.path.exists(tmp):
+              os.unlink(tmp)
+          raise
+
+  def save_faiss_atomic(index, path):
+      """Atomic FAISS index save: temp file + rename. Safe on NFS."""
+      import faiss
+      dir_name = os.path.dirname(path) or "."
+      os.makedirs(dir_name, exist_ok=True)
+      fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp.faiss")
+      os.close(fd)
+      try:
+          faiss.write_index(index, tmp)
+          os.rename(tmp, path)
+      except Exception:
+          if os.path.exists(tmp):
+              os.unlink(tmp)
+          raise
+  ```
+  Replace the two direct writes in aggregator.py with these.
+
+**D6 — Per-sample writes non-atomic in ALL processors**
+- Verified 6 non-atomic writes across the codebase. Zero processors use `save_json_atomic`:
+  1. `raft_flow.py:133` — `json.dump(stats, f)` for `flow_stats.json`
+  2. `clip.py:180` — `json.dump({"clip_std": clip_std}, f)` for `clip_std.json`
+  3. `phash.py:50` — `json.dump(stats, f)` for `phash_stats.json`
+  4. `base.py:154` — `json.dump({...}, f)` for `origins.json`
+  5. `ingest.py:334` — `json.dump(proxy_meta, f)` for `metadata.json`
+  6. `clip.py:175` — `np.save(...)` for clip embedding .npy files
+- Fix: Replace all 5 `json.dump` sites with `save_json_atomic(data, path)` (already exists
+  in video_utils.py, just needs importing). Add `save_npy_atomic(array, path)` to video_utils.py
+  for the .npy write:
+  ```python
+  def save_npy_atomic(array, path):
+      """Atomic numpy save: temp file + rename. Safe on NFS."""
+      dir_name = os.path.dirname(path) or "."
+      os.makedirs(dir_name, exist_ok=True)
+      fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp.npy")
+      os.close(fd)
+      try:
+          np.save(tmp, array)
+          os.rename(tmp, path)
+      except Exception:
+          if os.path.exists(tmp):
+              os.unlink(tmp)
+          raise
+  ```
+
+#### Step 5: Aggregator correctness
+
+**D3 — Failed samples marked as "included" in cache manifest**
+- File: `preprocess/aggregator.py` lines 296-309, 340-341
+- Problem: At line 299, `all_sids = sorted(prev_names | {sid for sid, _ in sample_list})`
+  adds ALL sample IDs to the inclusion set regardless of whether their data was actually
+  read. The aggregation functions (`aggregate_json_dict`, `aggregate_vector_index`) silently
+  skip samples with missing files, but the ID is already in `all_sids`. At line 341,
+  `"samples_included": all_sids` saves this inflated set. Result: next run sees the sample
+  as "already included", skips it, data permanently missing.
+- Fix: Track successful aggregations. Modify `aggregate_json_dict` to return
+  `(count, successful_sids)` where `successful_sids` is the set of sample IDs that had
+  non-empty data. Same for `aggregate_vector_index`. In `aggregate()`, build the final
+  `samples_included` from `prev_names | union(all_successful_sids)` instead of `all_sids`.
+  Concrete changes:
+  - `aggregate_json_dict`: add `included = set()`, `included.add(sid)` when `sample_data`
+    is non-empty (line 164), return `(len(merged), included)` instead of `len(merged)`
+  - `aggregate_vector_index`: add `included = set()`, `included.add(sid)` when `vec is not None`
+    (line 228), return `(count, included)` instead of `count`
+  - `aggregate()`: collect all returned sets, union them, use for `samples_included`
+
+**D4 — Scoped aggregation (`only_processors`) marks samples as globally included**
+- File: `preprocess/aggregator.py` lines 316-321, 340
+- Problem: When `only_processors=["clip"]` is used (e.g., auto-aggregation after a clip batch),
+  lines 316-321 filter which aggregation rules run (only clip's rules). But line 341 still
+  writes ALL new sample IDs to `samples_included`. Next full aggregation sees these samples
+  as "already included" and skips them — but phash/raft_flow rules never ran for them.
+- Fix: When `only_processors` is set, do NOT add new samples to `samples_included`. Only
+  full (unscoped) aggregation marks samples as globally included:
+  ```python
+  if only_processors is not None:
+      # Scoped aggregation: update cache data but don't claim full inclusion
+      manifest["samples_included"] = sorted(prev_names)
+  else:
+      manifest["samples_included"] = sorted(prev_names | all_successful_sids)
+  ```
+  This is safe because re-aggregating an already-included sample is idempotent:
+  `dict.update()` overwrites with same value, vector dedup replaces with same embedding.
+
+#### Step 6: Docstrings & purity labels
+
+**DOC1 — 7 mislabeled "Pure function" labels** (not 16 as originally reported)
+- Verified the actual offenders. 4 of them already say "Pure function (reads filesystem)" —
+  an oxymoron. The fix is to drop "Pure function" and keep "Reads filesystem":
+  1. `aggregator.py:36` `list_shard_pairs` — "Pure function (reads filesystem)" → "Reads filesystem"
+  2. `aggregator.py:59` `discover_sample_dirs` — "Pure function (reads filesystem)" → "Reads filesystem"
+  3. `aggregator.py:96` `read_sample_json` — "Pure function (reads filesystem)" → "Reads filesystem"
+  4. `aggregator.py:111` `read_sample_numpy` — "Pure function (reads filesystem)" → "Reads filesystem"
+  5. `app.py:141` `load_favorites` — "Pure function (reads filesystem)" → "Reads filesystem"
+  6. `app.py:175` `load_vector_indices` — "Pure function (reads filesystem)" → "Reads filesystem"
+  7. `app.py:217` `load_json_dicts` — reads filesystem, fix label
+- Borderline cases left alone: `needs_processing`, `filter_todo`, `select_video_source`,
+  `count_satisfied_deps` — these use `os.path.exists()` which is minimal I/O. Arguable.
+
+**DOC2 — 2 no-op doctests** (not 3 as originally reported)
+- `server/search.py:146` (`clip_search`): `>>> isinstance(clip_search.__doc__, str)` / `True`
+- `server/search.py:169` (`convex_hull_search`): same pattern
+- Fix: Replace with meaningful tests:
+  ```python
+  # clip_search
+  >>> import faiss
+  >>> idx = faiss.IndexFlatIP(3)
+  >>> idx.add(np.array([[1,0,0],[0,1,0]], dtype=np.float32))
+  >>> results = clip_search([1, 0, 0], idx, ["a", "b"], k=2)
+  >>> results[0]["video_name"]
+  'a'
+
+  # convex_hull_search
+  >>> embs = np.array([[1,0,0],[0,1,0],[0.9,0.1,0]], dtype=np.float32)
+  >>> results = convex_hull_search(embs[:1], embs, ["a","b","c"], k=3)
+  >>> results[0]["video_name"]
+  'a'
+  ```
+
+**DOC3 — 2 pure functions missing doctests**
+- `preprocess/video_utils.py:43` `sample_dir` — has docstring but no `>>>` example.
+  Add: `>>> 'samples' in sample_dir('/data/pexels', '19012581')` / `True`
+- `preprocess/processors/raft_flow.py` `_resize_for_flow` — add input/output shape doctest.
+
+**DOC4 — Missing shape annotations on array-transforming functions**
+- Per project conventions, functions that transform arrays MUST document shapes.
+- `clip_search`: `(D,) or (1, D) float32, faiss.Index, list[str] → list[{video_name, score}]`
+- `convex_hull_search`: `(K, D) float32, (N, D) float32, list[str] → list[{video_name, score}]`
+- `l2_normalize` (new): `(..., D) float32 → (..., D) float32`
+- `split_grid`: already has shape annotation, leave alone.
+
+#### Step 7: Setup & scripts
+
+**SH3 — Bare python3 in run.sh**
+- File: `run.sh:48` — `SAMPLE_COUNT=$(python3 -c "import json; ...")` uses bare `python3`.
+- Fix: Replace with `uv run python`. One word change.
+
+**SH4 — uv.lock gitignored**
+- File: `.gitignore:8` — `uv.lock` is listed.
+- Fix: Remove the line. Run `git add uv.lock` to commit the lockfile for reproducible builds.
+
+**SH6 — Unused dependencies in pyproject.toml**
+- Verified against all imports in the codebase. 5 completely unused (zero imports anywhere):
+  `requests`, `torchvision`, `py3nvml`, `easydict`, `einops`
+- Test-only deps (used only in files we're keeping or deleting):
+  - `decord2` — only in `benchmark_ingest.py` (being deleted in DC6). Remove.
+  - `psutil` — only in `profile_ingest.py` (being deleted in DC6). Remove.
+  - `pyinstrument` — only in `profile_ingest.py` (being deleted in DC6). Remove.
+  - `pynvvideocodec` — only in `bench_gpu_decode.py` and `bench_gpu_subprocess.py` (keeping).
+    Keep as optional dep or remove and let those benchmarks fail until manually installed.
+- Fix: Remove at minimum the 5 unused + 3 test-only-in-deleted-files = 8 deps. Run `uv lock`.
+
+**SH7 — opencv-python + opencv-contrib-python conflict**
+- `pyproject.toml:17-18` lists both. `opencv-contrib-python` is a strict superset.
+- Fix: Remove `opencv-python`, keep `opencv-contrib-python`. Run `uv lock`.
+
+**SH1/SH2 — Setup script gaps**
+- Node.js: Add comment to `run.sh` noting the requirement. Use `rp call ensure_node_installed`
+  in the frontend build section.
+- CommonSource: Add comment to `setup.sh` with the git clone command.
+- These are comments, not code. Minimal additions.
+
+---
+
+#### Phase 3: Dirty Tracking Implementation
+
+Depends on Steps 4-5 (atomic writes, correct inclusion tracking) being complete.
+See "Dirty Tracking for Fast Server Boot" section above for the full design.
+
+Implementation steps:
+
+1. **Add `touch_dirty(sample_path)` to `video_utils.py`**: touches `.dirty` at sample, bucket,
+   and shard levels. Three `open(path, 'a').close()` calls.
+
+2. **Call `touch_dirty()` in `ensure_sample_dir()` in `base.py`**: every processor calls
+   `ensure_sample_dir()` before writing artifacts. Guarantees markers exist before any write.
+
+3. **Add `clean_dirty(sample_dirs)` to aggregator**: after successful aggregation, delete
+   `.dirty` from each sample dir. Walk up: if bucket has no dirty samples, clean bucket's
+   `.dirty`. If shard has no dirty buckets, clean shard's `.dirty`.
+
+4. **Add `find_dirty_samples(samples_dir)` to aggregator**: fast scan — only descend into
+   shard dirs with `.dirty`, then bucket dirs with `.dirty`. Replaces `discover_sample_dirs()`
+   for boot-time check. O(dirty samples) not O(total samples).
+
+5. **Update `run.sh`**: replace unconditional aggregator with dirty check:
+   ```bash
+   DIRTY_COUNT=$(find datasets/pexels/samples -maxdepth 1 -name ".dirty" 2>/dev/null | wc -l)
+   if [ "$DIRTY_COUNT" -gt 0 ]; then
+       echo "Found dirty shards, aggregating..."
+       uv run python preprocess/aggregator.py --dataset_dir datasets/pexels --dirty_only
+   else
+       echo "Cache is current, skipping aggregation."
+   fi
+   ```
+
+6. **Add `.dirty` to `.gitignore`**: `**/.dirty`
+
+7. **Test**: process batch → verify markers → aggregate → verify cleanup → restart → verify fast boot.
