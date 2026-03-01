@@ -1,5 +1,37 @@
 # Searchable Pexels — Project Manifest (v2: Processor Architecture)
 
+## Glossary
+
+| Term | Definition |
+|------|-----------|
+| **Dataset** | A named collection of videos (e.g., `pexels`). Lives under `datasets/<name>/`. Contains manifest, samples, and cache. |
+| **Manifest** | `manifest.json` at dataset root. Array of `{video_name, caption, source_path}`. Source of truth for what videos exist. |
+| **Sample** | One video and all its per-video artifacts, stored in `samples/<shard1>/<shard2>/<sample_id>/`. Self-contained unit of processing. |
+| **Sample ID** | `<dataset>_<video_name>` (e.g., `pexels_19012581`). Used for shard hashing. |
+| **Shard** | Two-level hex directory prefix from sha256 of sample_id. First 2 chars / next 2 chars (e.g., `ae/d3/`). Creates up to 65,536 buckets. |
+| **Bucket** | A shard2-level directory (`samples/<s1>/<s2>/`) containing sample dirs. One of 65,536 possible locations. |
+| **Artifact** | A file produced by a processor in a sample directory. Types: image (viewable in UI), data (JSON/numpy). |
+| **Field** | A named numeric value per video (e.g., `duration`, `clip_std`, `flow_mean_magnitude`). Declared by processors. The unit of sort/filter/display in the frontend. |
+| **Processor** | A Python module in `preprocess/processors/` subclassing `Processor`. Auto-discovered. Produces artifacts and declares fields. |
+| **Cache** | `datasets/<name>/cache/`. Aggregated data derived from samples: merged JSON dicts, FAISS indices. Fully regenerable by the aggregator. |
+| **Cache Manifest** | `cache/cache_manifest.json`. Tracks which samples have been aggregated, timestamps, counts. |
+| **Aggregator** | `preprocess/aggregator.py`. Reads per-sample files and combines them into cache. Incremental or full-scan. |
+| **Dirty** | A `.dirty` marker file indicating unaggregated artifacts. Exists at sample, bucket, and shard levels. (TODO — not yet implemented.) |
+| **Proxy** | A 480p transcoded copy of the original video (`video_480p.mp4`). Created by the compress processor. Downstream processors prefer it for faster decode. |
+| **Origins** | `origins.json` in each sample dir. Records video_name, caption, source_path, dataset. Created by `ensure_sample_dir()`. |
+| **Sprite** | A 5×5 grid of 25 evenly-spaced frames from a video, saved as `sprite.jpg`. Used for hover scrubbing in the UI. |
+| **Thumbnail** | `thumb_first.jpg`, `thumb_middle.jpg`, `thumb_last.jpg`. 512px height JPEGs of first/middle/last frames. |
+| **Embedding** | A CLIP vector (512-dim float16) per video. Stored per-sample as `.npy`, aggregated into FAISS index. |
+| **Vector Index** | A FAISS `IndexFlatIP` plus parallel `_names.json` and `_embeddings.npz`. Enables cosine similarity search. |
+| **Batch** | A chunk of entries processed together by the pipeline (default 500). Auto-aggregation runs after each batch. |
+| **Pipeline** | `process_all.py`. Discovers processors, resolves dependencies, processes in topological order, batch loop. |
+| **Ingest** | The processor that opens the best proxy video once via PyAV and extracts all frame-based artifacts (thumbnails, sprite sheet) plus metadata. Depends on compress. All downstream processors work on these extracted files, never touching the raw video again. |
+| **Enriched** | A search result with `metadata` and `stats` dicts attached by the server before returning to frontend. |
+| **Hull** | Convex hull search. Finds videos nearest to the centroid of selected videos' embeddings. |
+| **Ternary Filter** | A 3-state UI toggle cycling Any → Only → None. Used for thumbnail and favorites filtering. |
+| **Caption** | AI-generated text description of a video from the raw Pexels metadata. |
+| **FZF** | Fuzzy finder syntax used for text search. Space=AND, `\|`=OR, `!`=NOT, `'quoted'`=exact phrase. |
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! NON-NEGOTIABLE: MANIFEST-FIRST DEVELOPMENT                                !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1062,13 +1094,42 @@ The biggest win is CLIP going from 15min to 30s per batch. The second win is ing
 - **`/api/status` must read disk**: In-memory counts never change after server boot. Status endpoint reads `cache_manifest.json` fresh from disk each poll.
 - **Auto-aggregation must be batch-scoped**: Full filesystem scan of samples/ after every 500-sample batch is O(minutes). Pass sample list directly → O(seconds).
 
-## Terminology
+## TODO
 
-- **Field**: named numeric value per video (e.g., `duration`, `clip_std`, `flow_mean_magnitude`). Comes from processor `fields` dicts. The unit of sort/filter/display in the frontend.
-- **Artifact**: file produced by a processor in a sample directory. Two types: image (viewable in UI), data (JSON/numpy).
-- **Processor**: Python module in `preprocess/processors/` that subclasses `Processor`. Auto-discovered by scanning the directory.
-- **Sample**: one video and all its artifacts, living in `samples/<shard_level1>/<shard_level2>/<video_name>/`.
-- **Cache**: aggregated data in `cache/`, derived from samples, fully regenerable by the aggregator.
-- **Shard**: two-level directory prefix from sha256 hash of sample_id (not video_name). First 2 hex chars / next 2 hex chars (e.g., `ae/d3/`). Creates 65,536 possible buckets for scalability to 10M+ samples.
-- **Ingest**: depends on compress. Opens the best proxy video once via PyAV and extracts all frame-based artifacts (thumbnails, sprite sheet) plus metadata. All downstream processors work on these extracted files, never touching the raw video again.
-- **Aggregator**: the script that reads per-sample files and combines them into cache-level aggregated files (FAISS index, merged JSON). Runs incrementally — skips samples already in the cache manifest.
+### Dirty Tracking for Fast Server Boot
+
+**Problem**: `run.sh` runs the aggregator before every server boot, which does a full filesystem scan of all 65K+ shard buckets under `samples/`. This takes minutes even when nothing has changed, because the aggregator's only way to find unaggregated samples is to walk the entire directory tree and diff against `cache_manifest.json`. The processing pipeline's `auto_aggregate` avoids this (passes `sample_list=` directly), but if a batch is interrupted before auto-aggregate fires, those samples are orphaned — on disk but not in cache.
+
+**Solution**: Explicit `.dirty` marker files at three levels of the shard hierarchy.
+
+**How it works**:
+
+1. **When any artifact is written to a sample dir**, the writing code touches `.dirty` files at all three levels:
+   - `samples/<s1>/<s2>/<sample_id>/.dirty` — this sample has unaggregated artifacts
+   - `samples/<s1>/<s2>/.dirty` — some sample in this bucket is dirty
+   - `samples/<s1>/.dirty` — some bucket in this shard is dirty
+
+2. **Where to put the touch logic**: in the lowest-level artifact-writing code (e.g., `ensure_sample_dir()` in `base.py`, or wherever files are written to sample dirs). This way every processor — current and future — automatically marks samples dirty without having to remember. No processor-level code changes needed.
+
+3. **Auto-aggregate cleans markers**: after successfully aggregating a batch, delete `.dirty` from each aggregated sample dir. If a shard's bucket has no more dirty samples, clean the bucket's `.dirty`. If a shard has no more dirty buckets, clean the shard's `.dirty`. (Walk up and clean if empty.)
+
+4. **On server boot** (in `run.sh` or aggregator):
+   - **No `.dirty` files at shard level** → skip aggregator entirely, cache is current. O(1) check: `ls samples/*/.dirty 2>/dev/null`.
+   - **Some `.dirty` shards found** → only descend into those shards, find dirty buckets, find dirty samples. Aggregate only those. Proportional to interrupted work, not total dataset size.
+   - **Fallback**: `--rebuild` flag still does full scan + `--clear_cache` for when you need it.
+
+5. **Interrupted batch scenario** (the motivating case):
+   - Pipeline processes 300 of 500 samples in a batch, writes artifacts to sample dirs
+   - Each artifact write touches `.dirty` up the shard tree
+   - User interrupts before auto-aggregate
+   - Next server boot: aggregator finds ~300 dirty samples via `.dirty` markers, aggregates just those, cleans markers
+   - Server starts with up-to-date cache
+
+**Key properties**:
+- Clean boot (no interrupted work) = instant, no scanning
+- Dirty boot = proportional to orphaned samples, not total dataset
+- Impossible to forget marking dirty (lives in shared write code)
+- Aggregation cleanup is straightforward (delete markers bottom-up)
+- `.dirty` files are tiny (empty, just the inode) and gitignored
+
+(See Glossary at top of manifest for all term definitions.)
