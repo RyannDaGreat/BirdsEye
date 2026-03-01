@@ -48,24 +48,53 @@ class UltraVideoDataset(VideoDataset):
     def _find_video(self, clip_id):
         """
         Find video file for a clip_id. Checks multiple resolution directories.
+        Directory structure: clips_short_1920/clips_short_1920/UUID.mp4 (double nested).
         Returns path if found, None otherwise.
         """
-        # Try 1920 first (highest available), then 960, then original
         for subdir in ("clips_short_1920", "clips_short_960", "clips_short"):
-            # Videos may be in numbered subdirs (clips_short_1920_1, clips_short_1920_2, etc.)
+            # Check double-nested (extracted from zip) and flat layouts
             for part_dir in sorted(glob.glob(os.path.join(ULTRAVIDEO_BASE, f"{subdir}*"))):
                 if not os.path.isdir(part_dir):
                     continue
+                # Double nested: clips_short_1920/clips_short_1920/UUID.mp4
+                inner = os.path.join(part_dir, os.path.basename(part_dir))
+                if os.path.isdir(inner):
+                    path = os.path.join(inner, clip_id)
+                    if os.path.exists(path):
+                        return path
+                # Flat: clips_short_1920_1/UUID.mp4
                 path = os.path.join(part_dir, clip_id)
                 if os.path.exists(path):
                     return path
         return None
+
+    def _scan_available_clips(self):
+        """
+        Build {clip_filename: full_path} dict by scanning extracted directories.
+        Fast: one readdir per directory instead of per-file stat.
+        """
+        available = {}
+        for subdir in ("clips_short_1920", "clips_short_960", "clips_short"):
+            for part_dir in sorted(glob.glob(os.path.join(ULTRAVIDEO_BASE, f"{subdir}*"))):
+                if not os.path.isdir(part_dir):
+                    continue
+                # Check double-nested layout
+                inner = os.path.join(part_dir, os.path.basename(part_dir))
+                scan_dir = inner if os.path.isdir(inner) else part_dir
+                for fname in os.listdir(scan_dir):
+                    if fname.endswith(".mp4") and fname not in available:
+                        available[fname] = os.path.join(scan_dir, fname)
+        return available
 
     def entries(self):
         """
         Read entries from short.csv. Only includes clips whose video files exist.
         Uses 'Summarized Description' as caption for richness.
         """
+        print("  Scanning available clips...")
+        available = self._scan_available_clips()
+        print(f"  Found {len(available)} clips on disk")
+
         csv_path = os.path.join(os.path.dirname(__file__), "short.csv")
         result = []
         skipped = 0
@@ -73,7 +102,7 @@ class UltraVideoDataset(VideoDataset):
         with open(csv_path) as f:
             for row in csv.DictReader(f):
                 clip_id = row["clip_id"]
-                video_path = self._find_video(clip_id)
+                video_path = available.get(clip_id)
                 if not video_path:
                     skipped += 1
                     continue
