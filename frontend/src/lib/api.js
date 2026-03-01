@@ -18,19 +18,16 @@ export async function fetchMetadataStats(dataset) {
   return checkedJson(resp);
 }
 
-export async function searchFuzzy(dataset, query, { page, pageSize, sort, sortDir, thumbFilter, favFilter, randomSeed, filters }) {
-  const filterQS = filtersToQueryString(filters);
-  const paginationQS = paginationToQueryString({ page, pageSize, sort, sortDir, thumbFilter, favFilter, randomSeed });
-  const resp = await fetch(`/api/search/fuzzy?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}`);
+/** Search via a named endpoint (fuzzy, clip). Pure function (returns promise). */
+async function searchWithEndpoint(endpoint, dataset, query, params) {
+  const filterQS = filtersToQueryString(params.filters);
+  const paginationQS = paginationToQueryString(params);
+  const resp = await fetch(`/api/search/${endpoint}?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}`);
   return checkedJson(resp);
 }
 
-export async function searchClip(dataset, query, { page, pageSize, sort, sortDir, thumbFilter, favFilter, randomSeed, filters }) {
-  const filterQS = filtersToQueryString(filters);
-  const paginationQS = paginationToQueryString({ page, pageSize, sort, sortDir, thumbFilter, favFilter, randomSeed });
-  const resp = await fetch(`/api/search/clip?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}`);
-  return checkedJson(resp);
-}
+export const searchFuzzy = (dataset, query, params) => searchWithEndpoint('fuzzy', dataset, query, params);
+export const searchClip = (dataset, query, params) => searchWithEndpoint('clip', dataset, query, params);
 
 export async function searchHull(dataset, selected, { page, pageSize, sort, sortDir, thumbFilter, favFilter, randomSeed, filters }) {
   const resp = await fetch('/api/search/hull', {
