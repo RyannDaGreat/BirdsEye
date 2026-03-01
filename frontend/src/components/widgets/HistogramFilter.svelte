@@ -93,8 +93,11 @@
     const r = chartEl.getBoundingClientRect();
     const x = e.clientX - r.left;
     const i = clamp(Math.floor((x / r.width) * n) / n) * n | 0;
-    const c = bins[Math.min(i, n - 1)] || 0;
-    tooltip = { x, text: `${c}` };
+    const idx = Math.min(i, n - 1);
+    const c = bins[idx] || 0;
+    // x-axis value at this bin's center
+    const binVal = round(lo + (idx + 0.5) * span / n);
+    tooltip = { x, text: `${binVal}, ${c}` };
   }
 
   function clear() { min = ''; max = ''; dispatch('change'); }

@@ -88,6 +88,7 @@
   </select>
   <div class="search-container">
     <div class="search-wrap">
+      <!-- svelte-ignore a11y-autofocus -->
       <input class="control search" bind:value={$searchQuery}
              placeholder={modePlaceholder($currentMode)}
              title="Search query — type and press Enter"

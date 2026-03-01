@@ -162,7 +162,7 @@
 
   .frames-row { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
   .frame-cell { flex: 1; min-width: 0; text-align: center; }
-  .frame-cell img { width: 100%; border-radius: var(--radius); }
+  .frame-cell :global(img) { width: 100%; border-radius: var(--radius); }
   .frame-label { font-size: var(--font-size-xs); color: var(--text-dim); margin-bottom: var(--space-xs); }
 
   .flow-section { margin-bottom: var(--space-md); }
@@ -171,7 +171,7 @@
     font-family: var(--font); font-size: var(--font-size-xs); color: var(--accent);
     padding: 0; margin-bottom: var(--space-sm);
   }
-  .flow-section img { width: 100%; border-radius: var(--radius); }
+  .flow-section :global(img) { width: 100%; border-radius: var(--radius); }
 
   .detail-caption { font-size: var(--font-size-control); line-height: 1.6; color: var(--text); }
   .detail-path { font-size: var(--font-size-xs); color: var(--text-dim); margin-top: var(--space-lg); word-break: break-all; }

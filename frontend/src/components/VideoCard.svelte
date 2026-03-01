@@ -82,7 +82,7 @@
   function onFavClick(e) { e.stopPropagation(); dispatch('favorite', item.video_name); }
 </script>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
 <div class="card" class:selected={isSelected}
      on:click={onClick} on:dblclick={onDblClick} on:contextmenu={onContext}
      on:mouseenter={() => $hoveredItem = item} on:mouseleave={() => $hoveredItem = null}>

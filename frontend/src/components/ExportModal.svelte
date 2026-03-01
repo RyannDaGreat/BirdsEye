@@ -25,7 +25,7 @@
 <svelte:window on:keydown={onKeydown} />
 
 {#if $showExport}
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
   <div class="modal-overlay" on:click={onOverlayClick}>
     <div class="modal">
       <h2>Export Video Names</h2>
