@@ -16,7 +16,7 @@
   const tooltips = {
     fuzzy: 'Text search through captions (FZF extended syntax)',
     clip: 'Semantic search: describe what you want to see',
-    hull: 'Find videos similar to your selection',
+    hull: 'Centroid search: computes the average embedding of your selected videos, then finds videos most similar to that average. Works because similar videos cluster in embedding space.',
   };
 
   let debounceTimer;

@@ -177,9 +177,16 @@ def clip_search(query_embedding, index, video_names, k=200):
 def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
     """
     Find videos nearest to the centroid of selected video embeddings.
-    Approximation of convex hull — uses centroid for simplicity and speed.
     Pure function.
     (K, D) float32, (N, D) float32, list[str] → list[{video_name, score}]
+
+    Despite the name, this is NOT convex hull membership testing. In 512-dim
+    space, K<512 points form a degenerate simplex with zero volume — nothing
+    would ever fall "inside" it. Instead, this computes the L2-normalized mean
+    (centroid) of selected embeddings and ranks all vectors by cosine similarity
+    to that centroid. Effectively: "find videos similar to the average concept
+    of my selections." Works well because similar videos cluster in embedding
+    space, so the centroid sits deep in the relevant region.
 
     >>> embs = np.array([[1,0,0],[0,1,0],[0.9,0.1,0]], dtype=np.float32)
     >>> convex_hull_search(embs[:1], embs, ["a","b","c"], k=3)[0]["video_name"]

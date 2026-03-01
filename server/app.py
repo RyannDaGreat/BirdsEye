@@ -487,13 +487,33 @@ def create_app(port=8899):
         result = {}
         for name, ds in DATASETS.items():
             vi = ds.get("vector_indices", {})
+            ds_mod = dataset_modules.get(name)
             result[name] = {
                 "count": len(ds["entries"]),
                 "has_clip": "clip" in vi,
                 "has_metadata": ds["video_metadata"] is not None,
                 "vector_indices": list(vi.keys()),
+                "human_name": ds_mod.human_name if ds_mod else name,
+                "help_text": ds_mod.help_text if ds_mod else "",
             }
         return jsonify(result)
+
+    @app.route("/api/embedding_models")
+    def embedding_models():
+        """Available text encoders for semantic search, discovered from processor plugins."""
+        models = {}
+        for prefix, encode_fn in text_encoders.items():
+            # Find the processor that owns this encoder
+            for proc_name, proc in all_procs.items():
+                es = getattr(proc, 'embedding_space', None)
+                if es and es.get("prefix") == prefix:
+                    models[prefix] = {
+                        "name": es.get("model", prefix),
+                        "description": es.get("description", ""),
+                        "dim": es.get("dim", 0),
+                    }
+                    break
+        return jsonify(models)
 
     @app.route("/api/config")
     def config():

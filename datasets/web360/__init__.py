@@ -18,7 +18,12 @@ WEB360_SOURCE = "/root/CleanCode/Dumps/Web360/datasets/web360/videos_512x1024x10
 class Web360Dataset(VideoDataset):
     name = "web360"
     human_name = "Web360"
-    fields = {}  # No useful numeric fields in the CSV (duration/contentUrl are empty)
+    fields = {}
+    help_text = (
+        "Web360 panoramic video dataset. 2,114 360-degree videos (512x1024) at 20fps. "
+        "AI-generated captions describe scenes from an omnidirectional perspective. "
+        "Source: WEB360_360TF_train split from the Web360 research dataset."
+    )
 
     def entries(self):
         """

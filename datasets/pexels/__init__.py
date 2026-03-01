@@ -14,7 +14,12 @@ from datasets import VideoDataset
 class PexelsDataset(VideoDataset):
     name = "pexels"
     human_name = "Pexels"
-    fields = {}  # No dataset-native numeric fields beyond what processors provide
+    fields = {}
+    help_text = (
+        "Pexels open-license video platform. 81,766 videos with AI-generated captions. "
+        "Videos range from 1s to 12min, resolutions up to 4K. Diverse content: nature, "
+        "cities, people, animals, aerial shots, abstract visuals."
+    )
 
     def entries(self):
         """

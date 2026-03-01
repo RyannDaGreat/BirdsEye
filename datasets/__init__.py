@@ -27,6 +27,8 @@ class Dataset(ABC):
         fields: dict     — {field_name: {label, description, dtype}}. Extra fields
                            this dataset provides per entry (beyond video_name/caption).
                            These show up in sort/filter/histogram in the UI.
+        help_text: str   — Description shown in the frontend help panel when this
+                           dataset is selected. Origin, format, characteristics.
 
     Subclasses MUST implement:
         entries() -> list[dict]  — return all entries for this dataset.
@@ -35,6 +37,7 @@ class Dataset(ABC):
     name: str
     human_name: str
     fields: dict = {}
+    help_text: str = ""
 
     def __init_subclass__(cls, **kwargs):
         """Validate that subclasses define required class attributes."""

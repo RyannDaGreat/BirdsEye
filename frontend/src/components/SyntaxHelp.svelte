@@ -25,8 +25,8 @@
     <span><code>'blue sky'</code> — exact phrase</span>
   </div>
   <div style="margin-top: var(--space-sm);">
-    <strong>CLIP mode</strong>: describe what you want to see (e.g. "sunset over ocean").
-    <strong>Hull mode</strong>: select videos first, then search for similar ones.
+    <strong>Semantic mode</strong>: describe what you want to see (e.g. "sunset over ocean"). Uses CLIP embeddings.
+    <strong>Hull mode</strong>: select videos, then find similar ones. Computes the centroid (average) of selected embeddings and ranks by cosine similarity to it.
   </div>
 </div>
 
