@@ -31,7 +31,7 @@ from flask_cors import CORS
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
-from server.search import fuzzy_search, clip_search, convex_hull_search, apply_filters, all_numeric_values, sort_results, paginate, bin_values
+from server.search import fuzzy_search, clip_search, convex_hull_search, apply_filters, all_numeric_values, sort_results, paginate, bin_values, l2_normalize
 from server.clip_encoder import encode_text
 from preprocess.video_utils import sample_dir, save_json_atomic
 
@@ -604,10 +604,7 @@ def create_app(port=8899):
         clip_idx = get_vector_index(ds, "clip")
         if query.strip() and clip_idx is not None:
             query_emb = encode_text(query)
-            query_emb = np.array(query_emb, dtype=np.float32).reshape(1, -1)
-            norm = np.linalg.norm(query_emb)
-            if norm > 0:
-                query_emb = query_emb / norm
+            query_emb = l2_normalize(np.array(query_emb, dtype=np.float32).reshape(1, -1))
             name_to_idx = {n: i for i, n in enumerate(clip_idx["video_names"])}
             for r in formatted:
                 idx = name_to_idx.get(r["video_name"])

@@ -9,6 +9,22 @@ import re
 import numpy as np
 
 
+def l2_normalize(vec):
+    """
+    L2-normalize a vector or batch of vectors. Zero vectors unchanged. Pure function.
+    (..., D) float32 → (..., D) float32
+
+    >>> l2_normalize(np.array([3.0, 4.0]))
+    array([0.6, 0.8])
+    >>> l2_normalize(np.array([0.0, 0.0]))
+    array([0., 0.])
+    >>> l2_normalize(np.array([[1.0, 0.0], [0.0, 0.0]])).tolist()
+    [[1.0, 0.0], [0.0, 0.0]]
+    """
+    norm = np.linalg.norm(vec, axis=-1, keepdims=True)
+    return np.where(norm > 0, vec / norm, vec)
+
+
 def tokenize_query(query):
     """
     Parse an FZF extended-mode query string into structured tokens.
@@ -146,10 +162,7 @@ def clip_search(query_embedding, index, video_names, k=200):
     True
     """
     query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
-    # L2 normalize
-    norm = np.linalg.norm(query_embedding)
-    if norm > 0:
-        query_embedding = query_embedding / norm
+    query_embedding = l2_normalize(query_embedding)
     scores, indices = index.search(query_embedding, k)
     results = []
     for score, idx in zip(scores[0], indices[0]):
@@ -173,15 +186,10 @@ def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
         return []
 
     centroid = np.mean(selected_embeddings, axis=0, keepdims=True).astype(np.float32)
-    norm = np.linalg.norm(centroid)
-    if norm > 0:
-        centroid = centroid / norm
+    centroid = l2_normalize(centroid)
 
     # Compute similarities
-    all_f32 = all_embeddings.astype(np.float32)
-    norms = np.linalg.norm(all_f32, axis=1, keepdims=True)
-    norms = np.maximum(norms, 1e-8)
-    all_normed = all_f32 / norms
+    all_normed = l2_normalize(all_embeddings.astype(np.float32))
     similarities = (all_normed @ centroid.T).flatten()
 
     # Sort by similarity descending
