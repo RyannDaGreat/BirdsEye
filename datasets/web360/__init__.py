@@ -19,6 +19,7 @@ class Web360Dataset(VideoDataset):
     name = "web360"
     human_name = "Web360"
     fields = {}
+    prefer_proxy_playback = True  # Original uses mpeg4 codec, browsers need H.264
     help_text = (
         "Web360 panoramic video dataset. 2,114 360-degree videos (512x1024) at 20fps. "
         "AI-generated captions describe scenes from an omnidirectional perspective. "

@@ -494,15 +494,16 @@ def create_app(port=8899):
         if not entry:
             return jsonify({"error": "Video not found"}), 404
 
-        # Prefer compressed proxy (H.264, browser-compatible) over original
-        sd = resolve_sample_path(datasets_dir, dataset, video_name)
-        proxy_prefs = ["compress_720p.mp4", "compress_480p.mp4", "compress_1080p.mp4"]
-        for proxy in proxy_prefs:
-            proxy_path = os.path.join(sd, proxy)
-            if os.path.exists(proxy_path):
-                return send_from_directory(sd, proxy, mimetype="video/mp4")
+        # Use proxy if dataset requires it (e.g., original codec not browser-compatible)
+        ds_mod = dataset_modules.get(dataset)
+        if ds_mod and ds_mod.prefer_proxy_playback:
+            sd = resolve_sample_path(datasets_dir, dataset, video_name)
+            for proxy in ("compress_720p.mp4", "compress_480p.mp4", "compress_1080p.mp4"):
+                proxy_path = os.path.join(sd, proxy)
+                if os.path.exists(proxy_path):
+                    return send_from_directory(sd, proxy, mimetype="video/mp4")
 
-        # Fall back to original source
+        # Serve original source
         source_path = entry["source_path"]
         if not os.path.exists(source_path):
             return jsonify({"error": f"Video file not found: {source_path}"}), 404
@@ -793,8 +794,10 @@ def create_app(port=8899):
 
         response = {
             "video_name": entry["video_name"],
+            "dataset": dataset,
             "caption": entry.get("caption", ""),
             "source_path": entry["source_path"],
+            "sample_path": sd,
             "video_url": f"/api/video/{dataset}/{video_name}",
             "thumbnails": thumbs,
         }
@@ -808,6 +811,11 @@ def create_app(port=8899):
         # Include stats if available
         if ds["video_stats"] and video_name in ds["video_stats"]:
             response["stats"] = ds["video_stats"][video_name]
+
+        # Include dataset-native fields if available
+        ds_fields = ds.get("dataset_fields") or {}
+        if video_name in ds_fields:
+            response.setdefault("stats", {}).update(ds_fields[video_name])
 
         # Flow sprite URL if it exists
         if os.path.exists(os.path.join(sd, "flow_sprite.jpg")):

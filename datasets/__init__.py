@@ -38,6 +38,7 @@ class Dataset(ABC):
     human_name: str
     fields: dict = {}
     help_text: str = ""
+    prefer_proxy_playback: bool = False  # True if original codec may not be browser-compatible
 
     def __init_subclass__(cls, **kwargs):
         """Validate that subclasses define required class attributes."""

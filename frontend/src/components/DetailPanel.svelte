@@ -60,7 +60,7 @@
     <div class="resize-handle" class:dragging on:mousedown={startResize} title="Drag to resize panel"></div>
     <button class="close-btn" on:click={close} title="Close detail panel (Escape)">&times;</button>
 
-    <div class="detail-name">{$currentDataset}:<strong>{$detailData.video_name}</strong></div>
+    <div class="detail-name"><span class="dataset-prefix">{$currentDataset}:</span><span class="video-title">{$detailData.video_name}</span></div>
 
     <div class="video-container">
       <video src="/api/video/{$currentDataset}/{$detailData.video_name}"
@@ -114,7 +114,7 @@
     {/if}
 
     <div class="detail-caption">{@html highlightTerms($detailData.caption || '', $searchQuery)}</div>
-    <div class="detail-path">{$detailData.source_path || ''}</div>
+    <div class="detail-path">{$detailData.sample_path || $detailData.source_path || ''}</div>
   </div>
 {/if}
 
@@ -141,7 +141,9 @@
     font-size: var(--spinner-size); cursor: pointer;
   }
 
-  .detail-name { font-size: var(--space-xl); font-weight: 600; color: var(--accent); margin-bottom: var(--space-md); }
+  .detail-name { font-size: var(--space-xl); color: var(--accent); margin-bottom: var(--space-md); }
+  .dataset-prefix { font-weight: 400; color: var(--text-dim); }
+  .video-title { font-weight: 700; }
 
   .video-container { margin-bottom: var(--space-sm); }
   video { width: 100%; aspect-ratio: 16/9; border-radius: var(--radius); background: var(--black); display: block; }
