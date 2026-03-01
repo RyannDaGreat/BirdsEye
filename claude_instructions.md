@@ -1707,3 +1707,67 @@ with metadata from `embedding_space` dicts. Frontend fetches on mount.
 
 This makes the system fully pluggable: add a new embedding processor, server discovers
 it, frontend shows it — zero edits to any other file.
+
+### Upcoming: Hull Search Documentation
+
+"Hull" / "convex hull" search is a MISNOMER. It is actually **centroid nearest-neighbor**:
+1. Compute mean of selected embeddings → centroid
+2. L2-normalize centroid (project onto unit sphere)
+3. Cosine similarity of all vectors to centroid
+4. Return top-k
+
+No actual convex hull is computed. In 512-dim space, a convex hull of K<512 points
+has zero volume — nothing would ever "fall inside" it. The centroid approach works
+because selecting K similar videos places the centroid deep in that concept region.
+
+**Action items:**
+- Update `convex_hull_search` docstring to explain centroid-based approach
+- Update frontend tooltip for Hull button to explain how it actually works
+- Keep the name "Hull" in UI (short, established) but tooltip must be accurate
+
+### Upcoming: Dataset-Native Artifacts
+
+Datasets can bring their own artifacts beyond video_name/caption/source_path.
+For example, OpenHumanVid has:
+- Human pose annotations
+- Segmentation masks
+- Additional video angles or crops
+
+**Requirements:**
+- Dataset class declares `artifacts` list (same format as processors: {filename, label,
+  description, type}). These are copied into sample dirs during `prepare()`.
+- Artifact names MUST NOT clash with processor artifact names. Validated at boot via
+  `validate_no_collisions()`.
+- Each artifact has a label and description (help string) visible in the UI.
+- Image/video artifacts from datasets are shown in the detail panel (preview area)
+  when a sample is double-clicked, alongside processor artifacts.
+- Dataset `help_text` attribute provides a per-dataset description shown in the
+  frontend help section when that dataset is selected. Describes origin, format,
+  characteristics, any special notes.
+
+### Upcoming: OpenHumanVid Integration
+
+Source: another dump folder (likely `/root/CleanCode/Dumps/OpenHumanVid/` or similar).
+
+**Key differences from Web360 POC:**
+- Has more artifacts than just video: pose annotations, masks, etc.
+- All artifacts must be copied/hardlinked into sample dirs with unique names
+- Dataset module lists all artifacts with labels and descriptions
+- Preview area in frontend shows all dataset artifacts (images, videos)
+- Non-visual artifacts (pose JSON, etc.) are listed as data artifacts
+- Process through compress + ingest at minimum
+
+**Workflow:**
+1. Find the dump, examine its contents and directory structure
+2. Create dataset module with all artifacts declared
+3. `prepare()` method hardlinks videos AND copies/hardlinks other artifacts
+4. Collision check at boot ensures no name conflicts
+5. Full testing alongside Pexels and Web360
+
+### Upcoming: Multi-Dataset UI
+
+Currently one dataset visible at a time via dropdown. Future enhancement:
+- Filter panel has dataset checkboxes (one or multiple selected)
+- Re-fetch metadataStats/histograms/fieldInfo on dataset selection change
+- fieldInfo becomes dataset-scoped (different datasets may have different fields)
+- API: `/api/field_info?dataset=pexels` returns fields for that specific dataset
