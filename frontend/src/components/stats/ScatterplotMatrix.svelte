@@ -20,6 +20,8 @@
   let hoverInfo = '';
   let hoverX = 0;
   let hoverY = 0;
+  let hoverRow = -1;
+  let hoverCol = -1;
   let observer;
   let useLog = true;
 
@@ -93,6 +95,8 @@
   }
 
   function onCellHover(e, row, col) {
+    hoverRow = row;
+    hoverCol = col;
     if (row === col) {
       hoverInfo = `${fieldLabel(fields[row].key)}: ${fields[row].values.length} samples`;
     } else {
@@ -104,7 +108,7 @@
     hoverY = e.clientY - rect.top - 8;
   }
 
-  function onCellLeave() { hoverInfo = ''; }
+  function onCellLeave() { hoverInfo = ''; hoverRow = -1; hoverCol = -1; }
 
   // Position of cell (row, col) — cells share borders via +1 offset per cell
   function cellLeft(col) { return LABEL_W + col * (cellSize + 1); }
@@ -124,12 +128,14 @@
       </button>
       <!-- Column headers (45° diagonal) -->
       {#each fields as f, i}
-        <span class="col-label" style="left: {cellLeft(i) + cellSize / 2}px; top: {HEADER_H - 4}px;"
+        <span class="col-label" class:highlight={hoverCol === i}
+              style="left: {cellLeft(i) + cellSize / 2}px; top: {HEADER_H - 4}px;"
               title={fieldLabel(f.key)}>{fieldLabel(f.key)}</span>
       {/each}
       <!-- Row labels -->
       {#each fields as f, i}
-        <span class="row-label" style="top: {cellTop(i)}px; width: {LABEL_W - 4}px; height: {cellSize}px;"
+        <span class="row-label" class:highlight={hoverRow === i}
+              style="top: {cellTop(i)}px; width: {LABEL_W - 4}px; height: {cellSize}px;"
               title={fieldLabel(f.key)}>{fieldLabel(f.key)}</span>
       {/each}
       <!-- Grid background (single-pixel lines) -->
@@ -138,7 +144,7 @@
       {#each { length: n } as _, row}
         {#each { length: n } as _, col}
           <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <div class="splom-cell"
+          <div class="splom-cell" class:crosshair={hoverRow === row || hoverCol === col} class:hovered={hoverRow === row && hoverCol === col}
                style="left: {cellLeft(col)}px; top: {cellTop(row)}px; width: {cellSize}px; height: {cellSize}px;"
                on:mousemove={(e) => onCellHover(e, row, col)}
                on:mouseleave={onCellLeave}>
@@ -174,14 +180,17 @@
     position: absolute;
     font-size: var(--font-size-xxs); color: var(--text-dim);
     white-space: nowrap; transform-origin: bottom left;
-    transform: rotate(-45deg);
+    transform: rotate(-45deg); transition: color 0.1s;
   }
+  .col-label.highlight { color: var(--accent); }
   .row-label {
     position: absolute; left: 0;
     font-size: var(--font-size-xxs); color: var(--text-dim);
     display: flex; align-items: center; justify-content: flex-end;
     padding-right: var(--space-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: color 0.1s;
   }
+  .row-label.highlight { color: var(--accent); }
   .grid-bg {
     position: absolute; background: var(--border);
   }
@@ -189,7 +198,10 @@
     position: absolute;
     background: var(--bg);
     overflow: hidden;
+    transition: background 0.1s;
   }
+  .splom-cell.crosshair { background: var(--surface); }
+  .splom-cell.hovered { background: var(--surface2); }
   .splom-cell canvas { display: block; width: 100%; height: 100%; }
   .splom-tip {
     position: absolute; pointer-events: none; z-index: 10;
