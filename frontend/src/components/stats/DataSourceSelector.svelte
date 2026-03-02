@@ -22,7 +22,16 @@
     { value: 'none', label: 'None' },
   ];
 
-  $: disabledSet = $selectedVideos.size === 0 ? new Set(['selection']) : new Set();
+  // Disabled in top row: selection when no videos selected
+  $: disabledA = $selectedVideos.size === 0 ? new Set(['selection']) : new Set();
+  // Disabled in bottom row: selection when no videos + the current top row source (A-A is useless)
+  $: disabledB = (() => {
+    const s = new Set([$statsSourceA]);
+    if ($selectedVideos.size === 0) s.add('selection');
+    return s;
+  })();
+  // Auto-clear B to 'none' when A changes to match B (Results-Results, etc. is useless)
+  $: if ($statsSourceA === $statsSourceB) $statsSourceB = 'none';
 </script>
 
 <div class="source-selector">
@@ -34,11 +43,11 @@
   <div class="tab-rows">
     <div class="tab-row">
       <span class="row-label"></span>
-      <ModeTabRow options={sourceOptions} bind:value={$statsSourceA} disabled={disabledSet} compact={true} />
+      <ModeTabRow options={sourceOptions} bind:value={$statsSourceA} disabled={disabledA} compact={true} />
     </div>
     <div class="tab-row">
       <span class="row-label">−</span>
-      <ModeTabRow options={minusOptions} bind:value={$statsSourceB} disabled={disabledSet} compact={true} />
+      <ModeTabRow options={minusOptions} bind:value={$statsSourceB} disabled={disabledB} compact={true} />
     </div>
   </div>
 </div>
