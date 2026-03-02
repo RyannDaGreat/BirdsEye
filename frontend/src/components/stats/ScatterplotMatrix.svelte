@@ -121,12 +121,17 @@
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    // Crosshair highlight (drawn first, behind everything)
+    // Dark base for entire grid area (slightly darker than surrounding)
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(PAD_LEFT, PAD_TOP, n * CELL, n * CELL);
+
+    // Crosshair highlight (even darker)
     if (hoverRow >= 0 && hoverCol >= 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
       ctx.fillRect(PAD_LEFT, PAD_TOP + hoverRow * CELL, n * CELL, CELL);
       ctx.fillRect(PAD_LEFT + hoverCol * CELL, PAD_TOP, CELL, n * CELL);
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      // Hovered cell: fully black
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.fillRect(PAD_LEFT + hoverCol * CELL, PAD_TOP + hoverRow * CELL, CELL, CELL);
     }
 
