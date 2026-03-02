@@ -23,7 +23,7 @@
           class:toggleable class:active class:highlighted on:click on:mouseenter on:mousemove on:mouseleave
           title={toggleable ? 'Click to toggle' : ''}>
       {#if toggleable}
-        <iconify-icon class="toggle-icon" icon={active ? 'mdi:checkbox-marked' : 'mdi:checkbox-blank-outline'} inline></iconify-icon>
+        <iconify-icon class="toggle-icon" class:active icon={active ? 'mdi:check' : 'mdi:close'} inline></iconify-icon>
       {/if}
       <span class="field-label">{label}:</span>
       <span class="field-value">{value}</span>
@@ -34,7 +34,7 @@
   <span class="field-bar" class:toggleable class:active class:highlighted on:click on:mouseenter on:mousemove on:mouseleave
         title={toggleable ? 'Click to toggle' : ''}>
     {#if toggleable}
-      <iconify-icon class="toggle-icon" icon={active ? 'mdi:checkbox-marked' : 'mdi:checkbox-blank-outline'} inline></iconify-icon>
+      <iconify-icon class="toggle-icon" class:active icon={active ? 'mdi:check' : 'mdi:close'} inline></iconify-icon>
     {/if}
     <span class="field-label">{label}:</span>
     <span class="field-value">{value}</span>
@@ -60,5 +60,6 @@
   .toggleable:not(.active):hover { opacity: 0.7; }
   .active { border-color: var(--accent); }
   .highlighted { border-color: var(--accent); opacity: 1 !important; background: var(--surface2); }
-  .toggle-icon { font-size: var(--font-size-xs); flex-shrink: 0; }
+  .toggle-icon { font-size: var(--font-size-xxs); flex-shrink: 0; color: var(--text-dim); }
+  .toggle-icon.active { color: var(--accent); }
 </style>

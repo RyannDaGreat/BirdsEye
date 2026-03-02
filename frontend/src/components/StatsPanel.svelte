@@ -149,7 +149,7 @@
           <DataSourceSelector />
           <div class="separator dotted"></div>
           <div class="fields-header">
-            <div class="section-label">Fields</div>
+            <div class="section-label">Fields <span class="hint">(click to toggle)</span></div>
             <div class="field-actions">
               <button class="field-action" on:click={selectAll}>All</button>
               <button class="field-action" on:click={selectNone}>None</button>
@@ -264,11 +264,17 @@
     cursor: pointer; line-height: 1.5;
   }
   .field-action:hover { color: var(--accent); border-color: var(--accent); }
+  .hint { text-transform: none; letter-spacing: 0; opacity: 0.5; }
   .field-list {
     flex: 1; min-height: 0; overflow-y: auto;
     display: flex; flex-direction: column; gap: var(--space-xs);
     padding-top: var(--space-xs);
   }
+  /* Field bars: width of the longest bar, values right-aligned, softer active border */
+  .field-list :global(.field-bar) { display: flex; width: 100%; }
+  .field-list :global(.field-value) { margin-left: auto; }
+  .field-list :global(.field-bar.active) { border-color: rgba(74, 158, 255, 0.4); }
+  .field-list { width: max-content; max-width: 100%; }
   .splom-col {
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
