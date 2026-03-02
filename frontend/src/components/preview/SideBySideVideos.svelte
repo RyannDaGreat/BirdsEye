@@ -4,12 +4,13 @@
     files       — filenames in sample dir
     labels      — display names per file
     max_per_row — max videos per row (default 3)
-    sync        — if true, play/pause/seek syncs across all videos
+    sync        — if true, first video is master; others follow via RAF drift correction
     show_filesize — if true, fetch and show file sizes next to labels
 -->
 <script>
   import { currentDataset } from '../../lib/stores.js';
   import { humanFilesize } from '../../lib/format.js';
+  import { onMount, onDestroy } from 'svelte';
 
   export let videoName = '';
   export let args = {};
@@ -20,22 +21,17 @@
   $: showFilesize = args.show_filesize || false;
   $: doSync = args.sync || false;
 
-  // Only show files that exist (non-404)
   let existingIndices = [];
   let fileSizes = {};
   let videoEls = [];
-  let syncing = false;
+  let rafId = null;
 
   async function probeFiles(dataset, vName, files) {
     if (!dataset || !vName || !files.length) return;
-
-    // Fetch file sizes from backend
     const resp = await fetch(`/api/file_sizes/${dataset}/${vName}`);
     if (!resp.ok) return;
     const sizes = await resp.json();
     fileSizes = sizes;
-
-    // Only include files that have a size entry (they exist on disk)
     existingIndices = [];
     for (let i = 0; i < files.length; i++) {
       if (sizes[files[i]] !== undefined) {
@@ -46,41 +42,69 @@
 
   $: probeFiles($currentDataset, videoName, allFiles);
 
-  // Video sync logic
-  function onPlay(idx) {
-    if (!doSync || syncing) return;
-    syncing = true;
-    for (let i = 0; i < videoEls.length; i++) {
-      if (i !== idx && videoEls[i]) {
-        videoEls[i].currentTime = videoEls[idx].currentTime;
-        videoEls[i].play();
+  /**
+   * Master-slave video sync via requestAnimationFrame.
+   * First video is the master (has controls). Others are slaves (no controls).
+   * RAF loop checks drift every frame; only corrects when drift > 100ms.
+   * No event listeners on slaves — eliminates feedback loops and flickering.
+   */
+  function startSync() {
+    if (!doSync || videoEls.length < 2) return;
+    const master = videoEls[0];
+    if (!master) return;
+
+    // Mirror master play/pause to slaves
+    master.addEventListener('play', syncPlay);
+    master.addEventListener('pause', syncPause);
+
+    // RAF drift-correction loop
+    function tick() {
+      if (!master) return;
+      for (let i = 1; i < videoEls.length; i++) {
+        const slave = videoEls[i];
+        if (!slave || slave.readyState < 2) continue;
+        if (Math.abs(slave.currentTime - master.currentTime) > 0.1) {
+          slave.currentTime = master.currentTime;
+        }
       }
+      rafId = requestAnimationFrame(tick);
     }
-    syncing = false;
+    rafId = requestAnimationFrame(tick);
   }
 
-  function onPause(idx) {
-    if (!doSync || syncing) return;
-    syncing = true;
-    for (let i = 0; i < videoEls.length; i++) {
-      if (i !== idx && videoEls[i]) {
+  function syncPlay() {
+    for (let i = 1; i < videoEls.length; i++) {
+      if (videoEls[i]) videoEls[i].play();
+    }
+  }
+
+  function syncPause() {
+    for (let i = 1; i < videoEls.length; i++) {
+      if (videoEls[i]) {
         videoEls[i].pause();
-        videoEls[i].currentTime = videoEls[idx].currentTime;
+        videoEls[i].currentTime = videoEls[0].currentTime;
       }
     }
-    syncing = false;
   }
 
-  function onSeeked(idx) {
-    if (!doSync || syncing) return;
-    syncing = true;
-    for (let i = 0; i < videoEls.length; i++) {
-      if (i !== idx && videoEls[i]) {
-        videoEls[i].currentTime = videoEls[idx].currentTime;
-      }
+  function stopSync() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    const master = videoEls[0];
+    if (master) {
+      master.removeEventListener('play', syncPlay);
+      master.removeEventListener('pause', syncPause);
     }
-    syncing = false;
   }
+
+  // Start sync after elements are bound
+  $: if (doSync && existingIndices.length > 1 && videoEls.length > 1) {
+    stopSync();
+    // Tick delay lets Svelte finish binding videoEls
+    setTimeout(startSync, 50);
+  }
+
+  onDestroy(stopSync);
 </script>
 
 <div class="grid" style="--max-per-row: {maxPerRow}">
@@ -88,6 +112,7 @@
     {@const file = allFiles[fileIdx]}
     {@const label = allLabels[fileIdx]}
     {@const size = fileSizes[file]}
+    {@const isMaster = doSync && vidIdx === 0}
     <div class="cell">
       {#if label}
         <div class="label">
@@ -100,10 +125,7 @@
       <!-- svelte-ignore a11y-media-has-caption -->
       <video src="/thumbnails/{$currentDataset}/{videoName}/{file}"
              bind:this={videoEls[vidIdx]}
-             on:play={() => onPlay(vidIdx)}
-             on:pause={() => onPause(vidIdx)}
-             on:seeked={() => onSeeked(vidIdx)}
-             loop muted controls preload="metadata">
+             loop muted controls={!doSync || isMaster} preload="metadata">
       </video>
     </div>
   {/each}

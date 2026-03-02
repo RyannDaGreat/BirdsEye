@@ -895,5 +895,115 @@ def create_app(port=8899):
     app.run(host="0.0.0.0", port=port, debug=False)
 
 
+def _discover_dataset_dirs():
+    """
+    Find all dataset directories that have a manifest.json.
+    Pure function (reads filesystem).
+
+    >>> type(_discover_dataset_dirs())
+    <class 'list'>
+    """
+    datasets_dir = os.path.join(REPO_ROOT, "datasets")
+    dirs = []
+    if os.path.isdir(datasets_dir):
+        for name in sorted(os.listdir(datasets_dir)):
+            manifest = os.path.join(datasets_dir, name, "manifest.json")
+            if os.path.isfile(manifest):
+                dirs.append(os.path.join(datasets_dir, name))
+    return dirs
+
+
+def _build_frontend():
+    """Build the Svelte frontend. Installs npm deps if needed."""
+    import subprocess
+    import rp.r
+
+    frontend_dir = os.path.join(REPO_ROOT, "frontend")
+    if not os.path.isdir(frontend_dir):
+        print("No frontend/ directory found, skipping build.")
+        return
+
+    rp.r._ensure_npm_installed()
+
+    if not os.path.isdir(os.path.join(frontend_dir, "node_modules")):
+        print("Installing frontend dependencies...")
+        subprocess.run(["npm", "install"], cwd=frontend_dir, check=True)
+
+    print("Building frontend...")
+    subprocess.run(["npm", "run", "build"], cwd=frontend_dir, check=True)
+    print("")
+
+
+def _aggregate_datasets(skip_aggregate=False):
+    """
+    Aggregate cache for all discovered datasets, or validate caches exist.
+
+    Args:
+        skip_aggregate: If True, validate that all datasets have cache.
+                        If False, run aggregator for each dataset.
+    """
+    import subprocess
+
+    ds_dirs = _discover_dataset_dirs()
+    if not ds_dirs:
+        raise SystemExit(
+            "ERROR: No datasets found (no datasets/*/manifest.json).\n"
+            "  Run: uv run python preprocess/process_all.py --dataset <name>"
+        )
+
+    if skip_aggregate:
+        print("Skip-aggregate: validating caches...")
+        missing = [
+            os.path.basename(d) for d in ds_dirs
+            if not os.path.isfile(os.path.join(d, "cache", "cache_manifest.json"))
+        ]
+        if missing:
+            msg = f"ERROR: --skip_aggregate was set but no cache found for: {', '.join(missing)}\n\n"
+            msg += "  Either run aggregation first (without --skip_aggregate),\n"
+            msg += "  or process the missing datasets:\n"
+            for m in missing:
+                msg += f"    uv run python preprocess/process_all.py --dataset {m}\n"
+            raise SystemExit(msg)
+        print(f"  All {len(ds_dirs)} dataset(s) have cached data. Skipping aggregation.\n")
+    else:
+        print(f"Aggregating cache for {len(ds_dirs)} dataset(s)...")
+        for ds_dir in ds_dirs:
+            name = os.path.basename(ds_dir)
+            print(f"  {name}...")
+            subprocess.run(
+                [sys.executable, os.path.join(REPO_ROOT, "preprocess", "aggregator.py"),
+                 "--dataset_dir", ds_dir],
+                check=True,
+            )
+        print("")
+
+    # Print summary
+    print("Bird's Eye")
+    print(f"  Datasets: {len(ds_dirs)}")
+    for ds_dir in ds_dirs:
+        name = os.path.basename(ds_dir)
+        cache_file = os.path.join(ds_dir, "cache", "cache_manifest.json")
+        count = 0
+        if os.path.isfile(cache_file):
+            with open(cache_file) as f:
+                count = json.load(f).get("total_samples", 0)
+        print(f"    {name}: {count} samples")
+    print("")
+
+
+def startup(port=8899, skip_aggregate=False):
+    """
+    Full startup sequence: build frontend, aggregate datasets, start server.
+
+    Args:
+        port: Server port (default 8899).
+        skip_aggregate: Skip cache aggregation for fast startup.
+                        Errors if any dataset has no cached data.
+    """
+    _build_frontend()
+    _aggregate_datasets(skip_aggregate)
+    create_app(port)
+
+
 if __name__ == "__main__":
-    fire.Fire(create_app)
+    fire.Fire({"startup": startup, "serve": create_app})

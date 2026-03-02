@@ -990,16 +990,31 @@ No shard in the URL. Transparent to the frontend.
 
 ## run.sh
 
+Thin bash bootstrapper — only does what must be bash (uv install, lockfile), then
+delegates to Python:
+
 ```bash
-bash run.sh [PORT] [--skip-aggregate]
+bash run.sh [--port PORT] [--skip_aggregate]
+bash run.sh -- --help
 ```
 
-**Startup sequence**: install uv → lock deps → build frontend → aggregate → start server.
+**Architecture decision**: Argument parsing, dependency installation, frontend build,
+aggregation, and server startup all live in Python (`server/app.py` Fire CLI). This
+gives us typed arguments, auto-generated `--help`, and proper validation for free.
+Bash was error-prone — unknown args like `--google` were silently accepted as port values.
 
-**`--skip-aggregate` flag**:
-- Without flag (default): aggregates cache for ALL discovered datasets (any `datasets/*/manifest.json`).
+**Two Fire subcommands:**
+- `startup` — full sequence: build frontend → aggregate → start server (default via run.sh)
+- `serve` — just start the server (skip build/aggregate, useful for dev)
+
+**`--skip_aggregate` flag:**
+- Without flag (default): aggregates cache for ALL discovered datasets.
 - With flag + all caches exist: skips aggregation entirely for fast startup.
-- With flag + missing cache: errors with actionable instructions listing which datasets need processing.
+- With flag + missing cache: errors with actionable instructions.
+
+**Dependency installation** uses `rp.r._ensure_npm_installed()` (from the rp library)
+to install Node.js + npm if missing, instead of fragile bash checks. Import via
+`import rp.r` since the ensure functions are private.
 
 The startup summary prints per-dataset sample counts from `cache/cache_manifest.json`.
 
@@ -1089,7 +1104,8 @@ The biggest win is CLIP going from 15min to 30s per batch. The second win is ing
 - **CSS mask-image needs real dimensions**: Setting `height: 0` with `overflow: visible` makes the element visually invisible because CSS mask-image requires actual element area to render. Solution: use a small placeholder wrapper for layout, absolute-position the full-size masked element on top.
 - **Ghost preview sections**: Never declare a preview section for an artifact that isn't actually generated. The raft_flow processor declared `flow_sprite.jpg` but only produces `flow_stats.json` (numeric data). The preview section referenced a non-existent file, causing 404 errors in the UI.
 - **JS pure functions must follow the same standards as Python**: All JS utility functions must be labeled as pure, have JSDoc with examples, and live in shared modules (`format.js`, `fields.js`) — not inline in Svelte components.
-- **Video sync needs a reentrant guard**: When syncing play/pause/seek across multiple `<video>` elements, setting one video's `currentTime` fires a `seeked` event on it, which would trigger the sync handler again → infinite loop. A `syncing` boolean flag prevents reentrance.
+- **Event-based video sync is fundamentally broken**: Listening for play/pause/seeked on ALL videos and propagating creates infinite loops and flickering — even with a reentrant guard flag — because `currentTime` assignment triggers `seeked` events asynchronously. The correct approach is master-slave: only the first video has controls, others have no event listeners. A `requestAnimationFrame` loop corrects drift > 100ms. This is the standard approach in professional video comparison tools.
+- **Bash argument parsing is fragile**: Unknown args like `--google` silently fell through to the port variable. Moved all arg parsing to Python Fire, which auto-validates, type-checks, and generates `--help`.
 
 ## TODO
 
@@ -2037,9 +2053,15 @@ preview_sections = [
 - **File sizes** shown next to labels in 50% opacity text (e.g., "1080p 2.3MB").
   Uses `humanFilesize()` in `format.js` matching rp's `human_readable_file_size` format
   (1024-based, integer when exact, 1 decimal otherwise).
-- **Video sync:** When one video plays/pauses/seeks, all sibling videos follow.
-  Prevents confusing out-of-sync playback in compression ladder comparisons.
-  Implemented via shared `syncing` flag to prevent infinite event loops.
+- **Video sync:** Master-slave pattern with requestAnimationFrame drift correction.
+  First video is the master (has controls), all others are slaves (no controls).
+  RAF loop runs every frame, corrects slave `currentTime` only when drift > 100ms.
+  Master's play/pause events propagate to slaves. No event listeners on slaves at all —
+  this eliminates the feedback loops and flickering that event-based sync causes.
+  Research frenzy (10 agents) confirmed this is the standard approach used by
+  professional video comparison tools (Netflix VMAF viewer, Panopto, etc.).
+  Previous attempt used event-based sync (play/pause/seeked propagation) which caused
+  infinite loops and flickering because setting `currentTime` fires `seeked` events.
 - **Only show existing files:** The component fetches file sizes from
   `/api/file_sizes/<dataset>/<video_name>` and only renders files that exist on disk.
   Ghost/missing artifacts are silently omitted.
