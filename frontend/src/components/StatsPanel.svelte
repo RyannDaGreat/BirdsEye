@@ -1,6 +1,6 @@
 <!--
   Statistics panel: three resizable columns side by side.
-  Left: Summary (vertical field bar list). Center: Scatterplot Matrix. Right: Words.
+  Left: Analysis (data source + field toggles). Center: Scatterplot Matrix. Right: Words.
   Draggable vertical splits between columns.
 -->
 <script>
@@ -118,20 +118,20 @@
 
 {#if $showStats}
   <div class="stats-panel" style="height: {$statsHeight}px;">
-    <div class="stats-header separator dotted">
-      <div class="section-label">Data Source</div>
-      <DataSourceSelector />
-    </div>
-
     <div class="stats-body">
-      <!-- Left: Fields -->
-      <div class="col fields-col" bind:this={fieldsEl}
+      <!-- Left: Analysis (data source + field toggles) -->
+      <div class="col analysis-col" bind:this={fieldsEl}
            style={col1W !== null ? `width: ${col1W}px; flex: none;` : ''}>
-        <div class="fields-header">
-          <div class="section-label">Fields</div>
-          <div class="field-actions">
-            <button class="field-action" on:click={selectAll}>All</button>
-            <button class="field-action" on:click={selectNone}>None</button>
+        <div class="col-fixed">
+          <div class="section-label">Analysis</div>
+          <DataSourceSelector />
+          <div class="separator dotted"></div>
+          <div class="fields-header">
+            <div class="section-label">Fields</div>
+            <div class="field-actions">
+              <button class="field-action" on:click={selectAll}>All</button>
+              <button class="field-action" on:click={selectNone}>None</button>
+            </div>
           </div>
         </div>
         <div class="field-list">
@@ -179,21 +179,20 @@
     display: flex; flex-direction: column;
     overflow: hidden; flex-shrink: 0;
   }
-  .stats-header {
-    display: flex; gap: var(--space-xl); align-items: flex-start;
-    padding: var(--space-sm) var(--space-2xl);
-    flex-shrink: 0;
-  }
   .stats-body {
     flex: 1; min-height: 0;
     display: flex;
-    padding: 0 var(--space-md) var(--space-sm);
+    padding: var(--space-sm) var(--space-md) var(--space-sm);
   }
   .col { min-height: 0; overflow: hidden; }
-  .fields-col {
+  .analysis-col {
     flex: 1; min-width: 0;
-    overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-xs);
+    display: flex; flex-direction: column;
     padding: 0 var(--space-sm);
+  }
+  .col-fixed {
+    flex-shrink: 0;
+    display: flex; flex-direction: column; gap: var(--space-xs);
   }
   .section-label {
     font-size: var(--font-size-xxs); text-transform: uppercase;
@@ -201,7 +200,6 @@
   }
   .fields-header {
     display: flex; align-items: center; justify-content: space-between;
-    flex-shrink: 0;
   }
   .field-actions { display: flex; gap: var(--space-xs); }
   .field-action {
@@ -212,7 +210,9 @@
   }
   .field-action:hover { color: var(--accent); border-color: var(--accent); }
   .field-list {
+    flex: 1; min-height: 0; overflow-y: auto;
     display: flex; flex-direction: column; gap: var(--space-xs);
+    padding-top: var(--space-xs);
   }
   .splom-col {
     flex: 1; min-width: 0;
