@@ -7,7 +7,7 @@
   import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
   import { collectNumericFields, summarize } from '../lib/stats.js';
   import { formatNumber } from '../lib/format.js';
-  import { fieldLabel, fieldTooltip } from '../lib/fields.js';
+  import { fieldLabel, fieldTooltip, sortFieldKeys } from '../lib/fields.js';
   import FieldBar from './widgets/FieldBar.svelte';
   import ScatterplotMatrix from './stats/ScatterplotMatrix.svelte';
   import WordFrequency from './stats/WordFrequency.svelte';
@@ -27,9 +27,9 @@
   $: fieldsA = $showStats ? collectNumericFields(sourceAItems) : {};
   $: fieldsB = $showStats && sourceBItems ? collectNumericFields(sourceBItems) : null;
 
+  $: sortedKeys = sortFieldKeys(Object.keys(fieldsA));
   $: {
-    const keys = Object.keys(fieldsA);
-    if ($activeFields.size === 0 && keys.length > 0) $activeFields = new Set(keys);
+    if ($activeFields.size === 0 && sortedKeys.length > 0) $activeFields = new Set(sortedKeys);
   }
 
   function toggleField(key) {
@@ -38,11 +38,11 @@
     $activeFields = s;
   }
 
-  $: splomFieldsA = Object.entries(fieldsA)
-    .filter(([key]) => $activeFields.has(key))
-    .map(([key, values]) => ({ key, values }));
+  $: splomFieldsA = sortedKeys
+    .filter(key => $activeFields.has(key) && fieldsA[key])
+    .map(key => ({ key, values: fieldsA[key] }));
   $: splomFieldsB = fieldsB
-    ? Object.entries(fieldsB).filter(([key]) => $activeFields.has(key)).map(([key, values]) => ({ key, values }))
+    ? sortedKeys.filter(key => $activeFields.has(key) && fieldsB[key]).map(key => ({ key, values: fieldsB[key] }))
     : null;
 
   function fmt(v) { return formatNumber(v); }
@@ -116,13 +116,13 @@
       <div class="col fields-col" style="width: {col1W}px;">
         <div class="section-label">Fields</div>
         <div class="field-list">
-          {#each Object.entries(fieldsA) as [key]}
+          {#each sortedKeys as key}
             <FieldBar label={fieldLabel(key)} value={summaryValue(key)}
                       tooltip={fieldTooltip(key)}
                       toggleable={true} active={$activeFields.has(key)}
                       on:click={() => toggleField(key)} />
           {/each}
-          {#if Object.keys(fieldsA).length === 0}
+          {#if sortedKeys.length === 0}
             <FieldBar label="Stats" value="No numeric data" />
           {/if}
         </div>

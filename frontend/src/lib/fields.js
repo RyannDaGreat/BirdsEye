@@ -105,19 +105,32 @@ export function fieldStep(key, stats) {
  */
 /** Preferred field ordering. Listed fields come first, rest follow alphabetically. */
 const FIELD_ORDER = [
-  'width', 'height', 'num_frames', 'duration', 'fps', 'file_size_mb',
-  'clip_std', 'score',
+  'height', 'width', 'duration', 'num_frames', 'file_size_mb',
+  'fps', 'clip_std', 'score',
   'flow_mean_magnitude', 'flow_max_magnitude', 'flow_min_magnitude', 'flow_std_magnitude', 'flow_temporal_std',
   'phash_mean_change', 'phash_max_change', 'phash_std_change', 'phash_temporal_std',
   'mean_volume', 'max_volume',
 ];
 
-export function availableFields(metadataStats) {
-  const keys = Object.keys(metadataStats);
-  // Sort: ordered fields first, then alphabetical for the rest
+/**
+ * Sort field keys by preferred ordering.
+ * Keys in FIELD_ORDER come first (in that order), rest follow alphabetically.
+ * Pure function.
+ *
+ * @param {string[]} keys - field keys to sort
+ * @returns {string[]} sorted keys
+ *
+ * >>> sortFieldKeys(['fps', 'height', 'width', 'zzz', 'duration'])
+ * ['height', 'width', 'duration', 'fps', 'zzz']
+ */
+export function sortFieldKeys(keys) {
   const ordered = FIELD_ORDER.filter(k => keys.includes(k));
   const rest = keys.filter(k => !FIELD_ORDER.includes(k)).sort();
-  return [...ordered, ...rest].map(key => ({
+  return [...ordered, ...rest];
+}
+
+export function availableFields(metadataStats) {
+  return sortFieldKeys(Object.keys(metadataStats)).map(key => ({
     key,
     label: fieldLabel(key),
     step: fieldStep(key, metadataStats[key]),
