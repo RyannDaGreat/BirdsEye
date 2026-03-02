@@ -133,6 +133,7 @@
 
       <!-- Center: Scatterplot Matrix -->
       <div class="col splom-col">
+        <div class="section-label">Scatterplot Matrix</div>
         <ScatterplotMatrix fields={splomFieldsA} fieldsB={splomFieldsB} />
       </div>
 
@@ -141,6 +142,7 @@
 
       <!-- Right: Words -->
       <div class="col words-col" style="width: {col3W}px;">
+        <div class="section-label">Word Frequency</div>
         <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} />
       </div>
     </div>
@@ -182,10 +184,13 @@
   }
   .splom-col {
     flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    padding: 0 var(--space-sm);
   }
   .words-col {
     flex-shrink: 0;
-    overflow-x: auto;
+    display: flex; flex-direction: column;
+    padding: 0 var(--space-sm);
   }
   .split-handle {
     width: var(--resize-handle-size); flex-shrink: 0;
