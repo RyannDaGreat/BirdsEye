@@ -155,11 +155,16 @@ export function humanFilesize(bytes) {
 
 /**
  * Collect all numeric fields from a video_info response into [{key, value}].
- * Iterates metadata + stats — no hardcoded field names.
+ * Iterates metadata + stats, plus top-level dynamic fields (e.g., score).
  * Pure function.
+ *
+ * @param {object} data - video_info response (may include .metadata, .stats, .score, etc.)
+ * @returns {{key: string, value: number}[]} sorted by field ordering
  */
 export function collectVideoFields(data) {
   const fields = [];
+  // Dynamic top-level fields (e.g., score from search results)
+  if (typeof data.score === 'number') fields.push({ key: 'score', value: data.score });
   for (const source of [data.metadata, data.stats]) {
     if (!source) continue;
     for (const [k, v] of Object.entries(source)) {

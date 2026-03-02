@@ -119,7 +119,20 @@
       } else {
         $currentResults = data.results || [];
         $totalResults = data.total || 0;
-        if (data.histograms) $histogramData = data.histograms;
+        if (data.histograms) {
+          $histogramData = data.histograms;
+          // Augment metadataStats with dynamic fields from result histograms (e.g., score).
+          // This lets availableFields() pick them up so FilterPanel shows them.
+          const augmented = { ...$metadataStats };
+          let changed = false;
+          for (const [key, hist] of Object.entries(data.histograms)) {
+            if (!(key in augmented)) {
+              augmented[key] = { min: hist.lo, max: hist.hi, count: hist.count };
+              changed = true;
+            }
+          }
+          if (changed) $metadataStats = augmented;
+        }
       }
     } catch (e) {
       $errorMsg = e.message;
@@ -176,7 +189,10 @@
 
   async function onDetail(e) {
     const item = e.detail;
-    $detailData = await fetchVideoInfo($currentDataset, item.video_name);
+    const info = await fetchVideoInfo($currentDataset, item.video_name);
+    // Preserve dynamic fields (e.g., score) from the search result item
+    if (item.score !== undefined) info.score = item.score;
+    $detailData = info;
   }
 
   async function onFavorite(e) {

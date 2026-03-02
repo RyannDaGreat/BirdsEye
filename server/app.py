@@ -435,6 +435,17 @@ def create_app(port=8899):
             values = fields.get(field, [])
             counts = bin_values(values, lo, hi, bins)
             histograms[field] = {"lo": lo, "hi": hi, "counts": counts, "count": len(values)}
+
+        # Also emit histograms for dynamic fields not in metadata_stats (e.g., score).
+        # These have no pre-computed range, so we derive min/max from the result values.
+        for field, values in fields.items():
+            if field in histograms or not values:
+                continue
+            lo = min(values)
+            hi = max(values)
+            counts = bin_values(values, lo, hi, bins)
+            histograms[field] = {"lo": lo, "hi": hi, "counts": counts, "count": len(values)}
+
         return histograms
 
     def post_process(results, ds, dataset, filters, thumb_filter, fav_filter, sort_key, sort_dir, page, page_size, random_seed=0):

@@ -443,3 +443,25 @@ Six frontend improvements implemented from user feedback:
 **Mouse-tip tooltips used `position: absolute` instead of `position: fixed`**: Tooltips were positioned relative to parent containers, which meant they were clipped by `overflow: hidden` ancestors. The Popover component already solved this with `position: fixed` + `z-index: 99999` and appending to `document.body`. The mouse-tip should have used the same approach from the start. Fix: `.mouse-tip` now uses `position: fixed` with `z-index: var(--z-tooltip)`. All tooltip offset math simplified from parent-relative to viewport coords via shared `tipPos(e)` helper. The Popover's hardcoded `99999` was also replaced with `var(--z-tooltip)`.
 
 **Magic number duplication between CSS and JS**: Initially defined tooltip offsets in both CSS vars (`--tip-offset-x/y`) and JS constants (`TIP_OFFSET_X/Y`). User correctly identified this as redundant. Since the offsets are only used in JS positioning, removed from CSS. Single source: `tipPos()` in format.js.
+
+## 2026-03-02 — Dynamic Fields Treated as Second-Class Citizens
+
+### Problem
+Dynamic fields (like CLIP Score) were completely invisible in two critical places:
+1. **FilterPanel** — no histogram, no ability to filter by score
+2. **DetailPanel** — score not shown in field bars when viewing a video
+
+### Root Cause — Three Breaks in the Chain
+The architecture had a fundamental mismatch: `score` is computed per-query (not stored on disk), but the filter/histogram system was built around pre-computed fields with known min/max ranges from `metadataStats`.
+
+1. **Server `compute_result_histograms()`**: Collected score values from results but **discarded them** — the histogram loop only iterated `metadata_stats.items()`, and score wasn't in `metadata_stats`.
+2. **`availableFields($metadataStats)`**: FilterPanel derived its field list from `metadataStats` keys. Score never in `metadataStats` = never shown.
+3. **`collectVideoFields(data)`**: Only checked `data.metadata` and `data.stats` objects, not top-level properties like `data.score`. And `onDetail()` called `fetchVideoInfo()` which discarded the clicked item's score entirely.
+
+### Fix — Three Corresponding Changes
+1. **Server**: After the main histogram loop, also emit histograms for fields found in results but NOT in `metadata_stats`, computing min/max from collected values.
+2. **App.svelte**: After receiving result histograms, augment `$metadataStats` with any new fields from the histogram response. This makes `availableFields()` pick them up automatically.
+3. **DetailPanel**: `onDetail()` now preserves `item.score` on the detail data. `collectVideoFields()` now checks top-level `data.score`.
+
+### Lesson
+Dynamic fields must not be second-class. The principle: **one field, one path through the system**. If a field exists, it appears in field bars, histograms, filters, SPLOM, sort, and detail — no exceptions. The only acceptable difference: dynamic fields get the ✦ marker and sort first.
