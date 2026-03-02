@@ -1,4 +1,4 @@
-# Bird's Eye — Project Manifest (v2: Processor Architecture)
+# BirdsEye — Project Manifest (v2: Processor Architecture)
 
 ## Glossary
 
@@ -32,6 +32,7 @@
 | **Ternary Filter** | A 3-state UI toggle cycling Any → Only → None. Used for thumbnail and favorites filtering. |
 | **Caption** | AI-generated text description of a video from the raw Pexels metadata. |
 | **FZF** | Fuzzy finder syntax used for text search. Space=AND, `\|`=OR, `!`=NOT, `'quoted'`=exact phrase. |
+| **Search Area** | The main tile grid (`VideoGrid.svelte`) where search results are displayed. Shows video cards in an auto-fill grid. In empty/error states, shows a centered message + BirdsEye logo watermark at 2/3 width, 8% opacity, matching text color. |
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! NON-NEGOTIABLE: MANIFEST-FIRST DEVELOPMENT                                !!!
@@ -2074,7 +2075,7 @@ preview_sections = [
 artifacts. It renders generic section types. Adding a new visualization = drop a Svelte
 renderer file, map a type string to it, have a plugin declare a section with that type.
 
-### Bird's Eye Logo
+### BirdsEye Logo
 
 Custom SVG logo (`frontend/src/assets/birdseye.svg`) displayed in the header via CSS
 mask-image for accent color inheritance.
@@ -2122,6 +2123,30 @@ Implementation:
 - `fieldTooltip(key)` in `fields.js` builds the HTML:
   `<strong>Label</strong><br/>Description<br/><span style="opacity:0.5;font-style:italic">Source: Name</span>`
 - Used by DetailPanel, StatsPanel (replaces inline tooltip construction).
+
+### Search Area Empty & Error States
+
+When the search area (`VideoGrid.svelte`) has no results or an API error, it shows:
+1. A centered message (error in red, empty in dim text)
+2. The BirdsEye logo watermark at 2/3 width, 8% opacity, matching the text color
+
+**Rationale:** Raw "API error 400 Bad Request" is not helpful. The user needs to
+understand what went wrong and what to do about it.
+
+**Error message improvement:** `checkedJson()` in `api.js` now reads the JSON body
+from error responses before throwing. The server already returns structured
+`{"error": "Vector index 'clip' not available. Available: []"}` responses — the
+frontend was just throwing away the body and showing the HTTP status line instead.
+
+**Edge cases and their messages:**
+- Hull search on dataset without CLIP → "Vector index 'clip' not available. Available: []"
+- Semantic search with no query → "Type a description for semantic search"
+- Hull search with no selection → "Select videos first, then use Hull mode"
+- No matching results → "No videos match your search."
+- Unknown dataset → "Unknown dataset: xyz"
+
+The logo watermark uses the same CSS mask-image technique as the header logo but
+inherits `currentColor` from the text (dim gray), not the accent color.
 
 ### Upcoming: Download Selected Samples
 

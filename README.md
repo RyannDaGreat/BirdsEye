@@ -1,4 +1,4 @@
-# Bird's Eye
+# BirdsEye
 
 Web application for searching through video datasets using fuzzy text search, semantic embedding search, and per-video statistics with histogram filtering.
 

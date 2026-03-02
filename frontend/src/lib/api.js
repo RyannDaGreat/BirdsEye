@@ -3,9 +3,18 @@
  * All functions are pure (return promises, no side effects on stores).
  */
 
+/**
+ * Parse a fetch response as JSON. If the server returned an error status,
+ * try to extract the error message from the JSON body before throwing.
+ * Pure function (returns promise).
+ */
 async function checkedJson(resp) {
-  if (!resp.ok) throw new Error(`API error: ${resp.status} ${resp.statusText}`);
-  return resp.json();
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const msg = (data && data.error) || `${resp.status} ${resp.statusText}`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
 export async function fetchDatasets() {

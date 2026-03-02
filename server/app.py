@@ -1,5 +1,5 @@
 """
-Flask backend for Bird's Eye video search.
+Flask backend for BirdsEye video search.
 
 Serves the web UI and provides search API endpoints:
   - /api/search/fuzzy   — FZF extended-mode text search
@@ -890,7 +890,7 @@ def create_app(port=8899):
         return jsonify({"error": f"Failed to reload dataset '{dataset}'"}), 500
 
     print(f"\n{'='*60}")
-    print(f"  Bird's Eye — http://0.0.0.0:{port}")
+    print(f"  BirdsEye — http://0.0.0.0:{port}")
     print(f"{'='*60}\n")
     app.run(host="0.0.0.0", port=port, debug=False)
 
@@ -978,7 +978,7 @@ def _aggregate_datasets(skip_aggregate=False):
         print("")
 
     # Print summary
-    print("Bird's Eye")
+    print("BirdsEye")
     print(f"  Datasets: {len(ds_dirs)}")
     for ds_dir in ds_dirs:
         name = os.path.basename(ds_dir)

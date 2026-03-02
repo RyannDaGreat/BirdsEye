@@ -1,4 +1,4 @@
-# Bird's Eye — Concerns & Progress Log
+# BirdsEye — Concerns & Progress Log
 
 ## 2026-02-26 — Project Init
 

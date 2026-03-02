@@ -79,7 +79,7 @@
 </script>
 
 <div class="header">
-  <h1><span class="logo-wrap"><span class="logo" title="Bird's Eye"></span></span> Bird's Eye</h1>
+  <h1><span class="logo-wrap"><span class="logo" title="BirdsEye"></span></span> BirdsEye</h1>
   <ReloadIndicator />
   <select class="control" bind:value={$currentDataset} on:change={() => dispatch('datasetchange')} title="Select dataset to search">
     {#each Object.entries($datasets) as [name, info]}
@@ -135,7 +135,7 @@
   }
   h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: var(--space-sm); }
   .logo-wrap {
-    display: inline-block; width: 1.2em; height: 1.2em; position: relative; flex-shrink: 0; margin-right: 10px;
+    display: inline-block; width: 1.2em; height: 1.2em; position: relative; flex-shrink: 0; margin-right: 15px;
   }
   .logo {
     position: absolute; width: 3.25em; height: 3.25em;

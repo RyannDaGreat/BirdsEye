@@ -8,13 +8,24 @@
   function onToggle(e) { dispatch('toggle', e.detail); }
   function onDetail(e) { dispatch('detail', e.detail); }
   function onFavorite(e) { dispatch('favorite', e.detail); }
+
+  $: hasResults = $currentResults.length > 0;
+  $: showEmpty = !$loading && !$errorMsg && !hasResults;
 </script>
 
 <div class="main">
   {#if $loading}
-    <div class="loading"><div class="spinner"></div>Loading...</div>
+    <div class="center-state"><div class="spinner"></div>Loading...</div>
   {:else if $errorMsg}
-    <div class="loading"><span class="error">{$errorMsg}</span></div>
+    <div class="center-state">
+      <span class="error-msg">{$errorMsg}</span>
+      <div class="watermark"></div>
+    </div>
+  {:else if showEmpty}
+    <div class="center-state">
+      <span class="empty-msg">No videos match your search.</span>
+      <div class="watermark"></div>
+    </div>
   {:else}
     <div class="grid">
       {#each $currentResults as item (item.video_name)}
@@ -31,9 +42,20 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: var(--space-md);
   }
-  .loading {
-    display: flex; align-items: center; justify-content: center;
+  .center-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 60px; color: var(--text-dim); font-size: var(--font-size-base);
+    height: 100%; min-height: 300px;
   }
-  .error { color: var(--selected); }
+  .error-msg { color: var(--selected); margin-bottom: var(--space-xl); }
+  .empty-msg { margin-bottom: var(--space-xl); }
+  .watermark {
+    width: 66%; max-width: 400px; aspect-ratio: 1;
+    background-color: currentColor; opacity: 0.08;
+    -webkit-mask-image: url('../assets/birdseye.svg');
+    mask-image: url('../assets/birdseye.svg');
+    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+  }
 </style>
