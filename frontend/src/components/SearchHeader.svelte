@@ -135,7 +135,7 @@
   }
   h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: var(--space-sm); }
   .logo-wrap {
-    display: inline-block; width: 1.2em; height: 1.2em; position: relative; flex-shrink: 0;
+    display: inline-block; width: 1.2em; height: 1.2em; position: relative; flex-shrink: 0; margin-right: 10px;
   }
   .logo {
     position: absolute; width: 3.25em; height: 3.25em;
