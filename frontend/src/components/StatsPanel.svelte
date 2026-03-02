@@ -1,6 +1,7 @@
 <!--
-  Statistics panel: all three views side by side.
+  Statistics panel: three resizable columns side by side.
   Left: Summary (vertical field bar list). Center: Scatterplot Matrix. Right: Words.
+  Draggable vertical splits between columns.
 -->
 <script>
   import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
@@ -12,7 +13,7 @@
   import WordFrequency from './stats/WordFrequency.svelte';
   import DataSourceSelector from './stats/DataSourceSelector.svelte';
 
-  // --- Data source computation ---
+  // --- Data source ---
   function getSourceItems(source, results, selected) {
     if (source === 'results') return results;
     if (source === 'selection') return results.filter(r => selected.has(r.video_name));
@@ -26,12 +27,9 @@
   $: fieldsA = $showStats ? collectNumericFields(sourceAItems) : {};
   $: fieldsB = $showStats && sourceBItems ? collectNumericFields(sourceBItems) : null;
 
-  // Active fields init
   $: {
     const keys = Object.keys(fieldsA);
-    if ($activeFields.size === 0 && keys.length > 0) {
-      $activeFields = new Set(keys);
-    }
+    if ($activeFields.size === 0 && keys.length > 0) $activeFields = new Set(keys);
   }
 
   function toggleField(key) {
@@ -40,54 +38,69 @@
     $activeFields = s;
   }
 
-  // SPLOM data
   $: splomFieldsA = Object.entries(fieldsA)
     .filter(([key]) => $activeFields.has(key))
     .map(([key, values]) => ({ key, values }));
   $: splomFieldsB = fieldsB
-    ? Object.entries(fieldsB)
-        .filter(([key]) => $activeFields.has(key))
-        .map(([key, values]) => ({ key, values }))
+    ? Object.entries(fieldsB).filter(([key]) => $activeFields.has(key)).map(([key, values]) => ({ key, values }))
     : null;
 
   function fmt(v) { return formatNumber(v); }
-
   function summaryValue(key) {
     const sA = summarize(fieldsA[key] || []);
     if (fieldsB && fieldsB[key]) {
       const sB = summarize(fieldsB[key]);
       const diff = sA.mean - sB.mean;
-      const sign = diff >= 0 ? '+' : '';
-      return `${sign}${fmt(diff)} (Δ)`;
+      return `${diff >= 0 ? '+' : ''}${fmt(diff)} (Δ)`;
     }
     return `${fmt(sA.mean)} (${fmt(sA.min)}..${fmt(sA.max)})`;
   }
 
-  // Resize
-  let dragging = false;
-  let startY = 0;
-  let startHeight = 0;
+  // --- Vertical resize (panel height) ---
+  let vDragging = false;
+  let vStartY = 0;
+  let vStartH = 0;
 
-  function startResize(e) {
-    dragging = true;
-    startY = e.clientY;
-    startHeight = $statsHeight;
+  function startVResize(e) {
+    vDragging = true; vStartY = e.clientY; vStartH = $statsHeight;
     document.body.style.cursor = 'ns-resize';
     document.body.style.userSelect = 'none';
     e.preventDefault();
   }
 
+  // --- Horizontal column splits ---
+  let col1W = 180;   // Fields column width
+  let col3W = 300;   // Words column width
+  let hDrag = 0;     // 0=none, 1=left split, 2=right split
+  let hStartX = 0;
+  let hStartW = 0;
+
+  function startSplit(which, e) {
+    hDrag = which; hStartX = e.clientX;
+    hStartW = which === 1 ? col1W : col3W;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  }
+
   function onMouseMove(e) {
-    if (!dragging) return;
-    const maxH = window.innerHeight * 0.6;
-    $statsHeight = Math.max(100, Math.min(maxH, startHeight + e.clientY - startY));
+    if (vDragging) {
+      const maxH = window.innerHeight * 0.6;
+      $statsHeight = Math.max(100, Math.min(maxH, vStartH + e.clientY - vStartY));
+    }
+    if (hDrag === 1) {
+      col1W = Math.max(100, Math.min(400, hStartW + e.clientX - hStartX));
+    } else if (hDrag === 2) {
+      col3W = Math.max(100, Math.min(600, hStartW - (e.clientX - hStartX)));
+    }
   }
 
   function onMouseUp() {
-    if (!dragging) return;
-    dragging = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
+    if (vDragging || hDrag) {
+      vDragging = false; hDrag = 0;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
   }
 </script>
 
@@ -100,11 +113,11 @@
     </div>
 
     <div class="stats-body">
-      <!-- Left: Summary (vertical list of field bars) -->
-      <div class="summary-col">
+      <!-- Left: Fields -->
+      <div class="col fields-col" style="width: {col1W}px;">
         <div class="section-label">Fields</div>
         <div class="field-list">
-          {#each Object.entries(fieldsA) as [key, vals]}
+          {#each Object.entries(fieldsA) as [key]}
             <FieldBar label={fieldLabel(key)} value={summaryValue(key)}
                       tooltip={fieldTooltip(key)}
                       toggleable={true} active={$activeFields.has(key)}
@@ -116,19 +129,25 @@
         </div>
       </div>
 
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="split-handle" on:mousedown={(e) => startSplit(1, e)} title="Drag to resize"></div>
+
       <!-- Center: Scatterplot Matrix -->
-      <div class="splom-col">
+      <div class="col splom-col">
         <ScatterplotMatrix fields={splomFieldsA} fieldsB={splomFieldsB} />
       </div>
 
-      <!-- Right: Word Frequency -->
-      <div class="words-col">
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="split-handle" on:mousedown={(e) => startSplit(2, e)} title="Drag to resize"></div>
+
+      <!-- Right: Words -->
+      <div class="col words-col" style="width: {col3W}px;">
         <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} />
       </div>
     </div>
   </div>
   <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="stats-resize-handle resize-handle" class:dragging on:mousedown={startResize}
+  <div class="v-resize-handle" class:active={vDragging} on:mousedown={startVResize}
        title="Drag to resize statistics panel"></div>
 {/if}
 
@@ -146,12 +165,14 @@
   }
   .stats-body {
     flex: 1; min-height: 0;
-    display: flex; gap: var(--space-md);
-    padding: 0 var(--space-2xl) var(--space-sm);
+    display: flex;
+    padding: 0 var(--space-md) var(--space-sm);
   }
-  .summary-col {
-    width: 180px; flex-shrink: 0;
+  .col { min-height: 0; overflow: hidden; }
+  .fields-col {
+    flex-shrink: 0;
     overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-xs);
+    padding: 0 var(--space-sm);
   }
   .section-label {
     font-size: var(--font-size-xxs); text-transform: uppercase;
@@ -161,16 +182,23 @@
     display: flex; flex-direction: column; gap: var(--space-xs);
   }
   .splom-col {
-    flex: 1; min-width: 0; min-height: 0;
+    flex: 1; min-width: 0;
   }
   .words-col {
-    flex: 1; min-width: 0; min-height: 0;
+    flex-shrink: 0;
     overflow-x: auto;
   }
-  .stats-resize-handle {
+  .split-handle {
+    width: var(--resize-handle-size); flex-shrink: 0;
+    cursor: ew-resize; background: transparent;
+    transition: background 0.15s;
+    border-left: 1px solid var(--border);
+  }
+  .split-handle:hover { background: var(--accent); }
+  .v-resize-handle {
     height: var(--resize-handle-size); cursor: ns-resize;
     background: transparent; transition: background 0.15s; flex-shrink: 0;
     border-bottom: 1px solid var(--border);
   }
-  .stats-resize-handle:hover, .stats-resize-handle.dragging { background: var(--accent); }
+  .v-resize-handle:hover, .v-resize-handle.active { background: var(--accent); }
 </style>

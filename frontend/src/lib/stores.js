@@ -39,7 +39,7 @@ export const detailWidth = writable(380);
 // --- Statistics panel ---
 export const statsHeight = writable(200);
 export const statsSourceA = writable('results');  // 'results' | 'dataset' | 'selection'
-export const statsSourceB = writable('dataset');   // 'results' | 'dataset' | 'selection' | 'none'
+export const statsSourceB = writable('none');      // 'results' | 'dataset' | 'selection' | 'none'
 // statsView removed — all three views shown side by side now
 export const activeFields = writable(new Set());  // toggled fields for scatterplot matrix
 
