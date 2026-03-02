@@ -2,15 +2,18 @@
   import { detailData, currentDataset, detailWidth, searchQuery, favorites } from '../lib/stores.js';
   import { formatNumber, collectVideoFields, highlightTerms } from '../lib/format.js';
   import { fieldLabel, fieldDescription } from '../lib/fields.js';
-  import SafeImage from './widgets/SafeImage.svelte';
   import FieldBar from './widgets/FieldBar.svelte';
+  import PreviewSection from './preview/PreviewSection.svelte';
+  import SectionRenderer from './preview/SectionRenderer.svelte';
+  import { onMount } from 'svelte';
+
+  let previewSections = [];
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
 
   let dragging = false;
   let startX = 0;
-  let flowVisible = false;
   let startWidth = 0;
 
   function close() {
@@ -46,6 +49,13 @@
   function toggleFav() {
     if ($detailData) dispatch('favorite', $detailData.video_name);
   }
+
+  onMount(async () => {
+    try {
+      const resp = await fetch('/api/preview_sections');
+      if (resp.ok) previewSections = await resp.json();
+    } catch (e) { console.warn('Failed to load preview sections:', e); }
+  });
 
   $: visible = $detailData !== null;
   $: allFields = visible ? collectVideoFields($detailData) : [];
@@ -88,28 +98,10 @@
       {/each}
     </div>
 
-    <!-- First/middle/last side by side -->
-    <div class="frames-row">
-      {#each ['first', 'middle', 'last'] as frame}
-        <div class="frame-cell">
-          <div class="frame-label">{frame.toUpperCase()}</div>
-          <SafeImage src={$detailData.thumbnails?.[frame] || ''} alt={frame} />
-        </div>
-      {/each}
-    </div>
-
-    <!-- Optical flow toggle -->
-    {#if $detailData.flow_sprite_url}
-      <div class="flow-section">
-        <button class="flow-toggle" on:click={() => flowVisible = !flowVisible}
-                title="Show/hide optical flow visualization grid">
-          OPTICAL FLOW (click to toggle)
-        </button>
-        {#if flowVisible}
-          <SafeImage src={$detailData.flow_sprite_url} alt="optical flow" aspectRatio="960/540" />
-        {/if}
-      </div>
-    {/if}
+    <!-- Plugin-declared preview sections (accordion) -->
+    {#each previewSections as section}
+      <SectionRenderer {section} videoName={$detailData.video_name} />
+    {/each}
 
     <div class="detail-caption">{@html highlightTerms($detailData.caption || '', $searchQuery)}</div>
     <div class="detail-path">{$detailData.sample_path || $detailData.source_path || ''}</div>
@@ -160,18 +152,7 @@
 
   .metadata { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-md); margin-bottom: var(--space-md); }
 
-  .frames-row { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
-  .frame-cell { flex: 1; min-width: 0; text-align: center; }
-  .frame-cell :global(img) { width: 100%; border-radius: var(--radius); }
-  .frame-label { font-size: var(--font-size-xs); color: var(--text-dim); margin-bottom: var(--space-xs); }
-
-  .flow-section { margin-bottom: var(--space-md); }
-  .flow-toggle {
-    background: none; border: none; cursor: pointer;
-    font-family: var(--font); font-size: var(--font-size-xs); color: var(--accent);
-    padding: 0; margin-bottom: var(--space-sm);
-  }
-  .flow-section :global(img) { width: 100%; border-radius: var(--radius); }
+  /* Preview sections rendered by SectionRenderer */
 
   .detail-caption { font-size: var(--font-size-control); line-height: 1.6; color: var(--text); }
   .detail-path { font-size: var(--font-size-xs); color: var(--text-dim); margin-top: var(--space-lg); word-break: break-all; }

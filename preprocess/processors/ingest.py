@@ -366,6 +366,14 @@ class IngestProcessor(Processor):
         {"type": "json_dict", "source": "metadata.json", "target": "video_metadata.json"},
     ]
 
+    preview_sections = [
+        {"type": "side_by_side_images", "label": "Frames", "priority": 20,
+         "args": {"files": ["thumb_first.jpg", "thumb_middle.jpg", "thumb_last.jpg"],
+                  "labels": ["First", "Middle", "Last"]}},
+        {"type": "single_image", "label": "Sprite Sheet", "priority": 60,
+         "args": {"file": "sprite.jpg"}},
+    ]
+
     def process(self, entries, dataset_dir, workers=DEFAULT_WORKERS):
         """Extract thumbnails + sprite + metadata for each video. CPU parallel."""
         global _processor_instance

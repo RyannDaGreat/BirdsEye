@@ -135,7 +135,7 @@
   }
   h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: var(--space-sm); }
   .logo {
-    display: inline-block; width: 1.3em; height: 1.3em;
+    display: inline-block; width: 3.25em; height: 3.25em; vertical-align: middle;
     background-color: currentColor;
     -webkit-mask-image: url('../assets/birdseye.svg');
     mask-image: url('../assets/birdseye.svg');

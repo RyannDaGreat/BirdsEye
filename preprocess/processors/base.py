@@ -110,6 +110,7 @@ class Processor(ABC):
     fields: dict = {}        # {field_name: {label, description}}
     aggregation: list = []   # [{type, source, target/prefix, ...}]
     embedding_space: dict = None  # Optional: {prefix, dim, model, description}
+    preview_sections: list = []  # [{type, label, priority, args}] — UI preview pane sections
 
     def __init_subclass__(cls, **kwargs):
         """Validate that subclasses define required class attributes."""

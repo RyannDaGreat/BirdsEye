@@ -208,6 +208,23 @@ def collect_text_encoders(processors):
     return encoders
 
 
+def collect_preview_sections(processors):
+    """
+    Collect all preview section declarations from processors, sorted by priority.
+
+    Pure function.
+
+    >>> collect_preview_sections({})
+    []
+    """
+    sections = []
+    for proc_name, proc in processors.items():
+        for section in getattr(proc, 'preview_sections', []):
+            sections.append({**section, "source": proc_name})
+    sections.sort(key=lambda s: s.get("priority", 100))
+    return sections
+
+
 def collect_artifact_info(processors):
     """
     Collect all artifact metadata from all processors, split by type.

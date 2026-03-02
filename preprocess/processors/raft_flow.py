@@ -186,6 +186,11 @@ class RaftFlowProcessor(Processor):
         {"type": "json_dict", "source": "flow_stats.json", "target": "video_stats.json"},
     ]
 
+    preview_sections = [
+        {"type": "single_image", "label": "Optical Flow", "priority": 55,
+         "args": {"file": "flow_sprite.jpg"}},
+    ]
+
     def process(self, entries, dataset_dir, workers=32):
         """Run RAFT as subprocess for CUDA isolation. Self-calls gpu_worker via Fire."""
         run_gpu_subprocess(entries, dataset_dir, __file__, self.human_name)

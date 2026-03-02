@@ -182,7 +182,13 @@ class CompressProcessor(Processor):
         {"filename": "compress_144p.mp4", "label": "144p Proxy", "description": "H.264 veryfast CRF 28 proxy, smaller dimension ≤ 144px. Miniature thumbnail video.", "type": "data"},
     ]
 
-    fields = {}  # compress doesn't produce numeric fields
+    fields = {}
+
+    preview_sections = [
+        {"type": "side_by_side_videos", "label": "Compression Ladder", "priority": 50,
+         "args": {"files": ["compress_1080p.mp4", "compress_720p.mp4", "compress_480p.mp4"],
+                  "labels": ["1080p", "720p", "480p"]}},
+    ]
 
     def process(self, entries, dataset_dir, workers=DEFAULT_WORKERS):
         """Compress videos to all ladder resolutions. CPU parallel via Pool."""

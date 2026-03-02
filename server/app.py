@@ -555,6 +555,18 @@ def create_app(port=8899):
             "sprite_frames": SPRITE_COLS * SPRITE_ROWS,
         })
 
+    @app.route("/api/preview_sections")
+    def preview_sections():
+        """Preview section declarations from processor and dataset plugins."""
+        from preprocess.processors import collect_preview_sections
+        sections = collect_preview_sections(all_procs)
+        # Also collect from dataset modules
+        for ds_mod in dataset_modules.values():
+            for section in getattr(ds_mod, 'preview_sections', []):
+                sections.append({**section, "source": f"dataset:{ds_mod.name}"})
+        sections.sort(key=lambda s: s.get("priority", 100))
+        return jsonify(sections)
+
     @app.route("/api/field_info")
     def field_info():
         """All field descriptions and artifact metadata from processor plugins."""
