@@ -85,11 +85,11 @@
                on:mouseenter={(e) => onColEnter(i, e)}
                on:mousemove={onColMove}
                on:mouseleave={() => hoverIdx = -1}>
-            <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
             <div class="bar-track">
               <div class="bar-fill" style="height: {barHeight(w)}%; background: {barColor(w)};"
                    title={tooltip(w)}></div>
             </div>
+            <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
           </div>
         {/each}
       </div>
