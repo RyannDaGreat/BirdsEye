@@ -29,11 +29,11 @@
   <div class="tab-rows">
     <div class="tab-row">
       <span class="row-label"></span>
-      <ModeTabRow options={sourceOptions} bind:value={$statsSourceA} disabled={disabledSet} />
+      <ModeTabRow options={sourceOptions} bind:value={$statsSourceA} disabled={disabledSet} compact={true} />
     </div>
     <div class="tab-row">
       <span class="row-label">−</span>
-      <ModeTabRow options={minusOptions} bind:value={$statsSourceB} disabled={disabledSet} />
+      <ModeTabRow options={minusOptions} bind:value={$statsSourceB} disabled={disabledSet} compact={true} />
     </div>
   </div>
   <Popover text="<strong>Data Source</strong><br/>Top row: primary population for statistics.<br/>Bottom row: optional comparison. When set, statistics show the difference (primary minus comparison).<br/><br/>Example: <em>Results − Dataset</em> reveals which values are over- or under-represented in your search results compared to the full dataset.">
@@ -48,12 +48,12 @@
   .tab-rows { display: flex; flex-direction: column; gap: var(--space-xs); }
   .tab-row { display: flex; align-items: center; gap: var(--space-sm); }
   .row-label {
-    color: var(--text-dim); font-size: var(--font-size-base); font-weight: 600;
+    color: var(--text-dim); font-size: var(--font-size-xs); font-weight: 600;
     width: var(--space-lg); text-align: center; flex-shrink: 0;
   }
   .help-icon {
     background: none; border: none; color: var(--text-dim); cursor: pointer;
-    font-size: var(--font-size-base); padding: 0; line-height: 1;
+    font-size: var(--font-size-xs); padding: 0; line-height: 1;
   }
   .help-icon:hover { color: var(--accent); }
 </style>
