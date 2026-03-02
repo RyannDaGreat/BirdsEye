@@ -5,9 +5,10 @@
 -->
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
-  import { drawScatter, drawHistogram } from '../../lib/canvas.js';
+  import { drawScatter, drawHistogram, findAlphaBounds } from '../../lib/canvas.js';
   import { pearsonCorrelation } from '../../lib/stats.js';
   import { fieldLabel } from '../../lib/fields.js';
+  import { hoveredFields } from '../../lib/stores.js';
 
   export let fields = [];
   export let fieldsB = null;
@@ -26,6 +27,8 @@
   // Offscreen cache for the expensive content
   let cacheCanvas = null;
   let dpr = 1;
+  // Alpha-crop bounding box (logical pixels in the full cache canvas)
+  let crop = { x: 0, y: 0, w: 0, h: 0 };
 
   const CELL = 80;
   const PAD_LEFT = 150;
@@ -42,9 +45,9 @@
   }
 
   function getScale() {
-    if (!outerEl || n === 0) return 1;
+    if (!outerEl || n === 0 || crop.w === 0 || crop.h === 0) return 1;
     const r = outerEl.getBoundingClientRect();
-    return Math.min(1, r.width / totalW, r.height / totalH);
+    return Math.min(1, r.width / crop.w, r.height / crop.h);
   }
 
   /** Render all expensive content to offscreen cache. Called once per data/log change. */
@@ -108,19 +111,35 @@
       ctx.fillText(fieldLabel(fields[i].key), PAD_LEFT - 4, PAD_TOP + i * CELL + CELL / 2);
     }
 
+    // Alpha-crop: find tight bounding box of rendered content
+    const bounds = findAlphaBounds(cacheCanvas, dpr);
+    // Small padding around content for breathing room
+    const pad = 2;
+    crop = {
+      x: Math.max(0, bounds.x - pad),
+      y: Math.max(0, bounds.y - pad),
+      w: Math.min(totalW - Math.max(0, bounds.x - pad), bounds.w + pad * 2),
+      h: Math.min(totalH - Math.max(0, bounds.y - pad), bounds.h + pad * 2),
+    };
+
+    scale = getScale();
     compositeFrame();
   }
 
-  /** Fast composite: crosshair + cached image + highlighted labels. */
+  /** Fast composite: crosshair + cached image + highlighted labels.
+   *  All drawing uses original (pre-crop) coordinates via ctx.translate(-crop.x, -crop.y).
+   *  The visible canvas is sized to the crop region. */
   function compositeFrame() {
-    if (!canvas || !cacheCanvas || n === 0) return;
+    if (!canvas || !cacheCanvas || n === 0 || crop.w === 0) return;
 
-    canvas.width = totalW * dpr;
-    canvas.height = totalH * dpr;
-    canvas.style.width = totalW + 'px';
-    canvas.style.height = totalH + 'px';
+    canvas.width = crop.w * dpr;
+    canvas.height = crop.h * dpr;
+    canvas.style.width = crop.w + 'px';
+    canvas.style.height = crop.h + 'px';
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
+    // Shift so we can use original coordinates (labels, grid, etc.)
+    ctx.translate(-crop.x, -crop.y);
 
     // Dark base for entire grid area (slightly darker than surrounding)
     ctx.fillStyle = 'rgba(0,0,0,0.15)';
@@ -136,7 +155,7 @@
       ctx.fillRect(PAD_LEFT + hoverCol * CELL, PAD_TOP + hoverRow * CELL, CELL, CELL);
     }
 
-    // Stamp cached content on top
+    // Stamp cached content on top (draw full cache, translate clips to visible region)
     ctx.drawImage(cacheCanvas, 0, 0, totalW * dpr, totalH * dpr, 0, 0, totalW, totalH);
 
     // Highlighted labels (overdraw on top of cached dim labels)
@@ -165,12 +184,12 @@
 
   $: scale = getScale();
   $: if (n >= 0 && outerEl) scale = getScale();
-  $: offsetY = outerEl ? Math.max(0, (outerEl.getBoundingClientRect().height - totalH * scale) / 2) : 0;
+  $: offsetY = outerEl && crop.h > 0 ? Math.max(0, (outerEl.getBoundingClientRect().height - crop.h * scale) / 2) : 0;
 
   onMount(() => {
     observer = new ResizeObserver(() => {
       scale = getScale();
-      offsetY = outerEl ? Math.max(0, (outerEl.getBoundingClientRect().height - totalH * scale) / 2) : 0;
+      offsetY = outerEl && crop.h > 0 ? Math.max(0, (outerEl.getBoundingClientRect().height - crop.h * scale) / 2) : 0;
     });
     if (outerEl) observer.observe(outerEl);
   });
@@ -180,12 +199,16 @@
   function onCanvasMove(e) {
     if (n === 0) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) / scale;
-    const my = (e.clientY - rect.top) / scale;
+    // Convert display coords to original (pre-crop) coords
+    const mx = (e.clientX - rect.left) / scale + crop.x;
+    const my = (e.clientY - rect.top) / scale + crop.y;
     const col = Math.floor((mx - PAD_LEFT) / CELL);
     const row = Math.floor((my - PAD_TOP) / CELL);
     if (row >= 0 && row < n && col >= 0 && col < n) {
       hoverRow = row; hoverCol = col;
+      // Cross-component highlight: both row and col fields (or just one on diagonal)
+      const hset = row === col ? new Set([fields[row].key]) : new Set([fields[row].key, fields[col].key]);
+      $hoveredFields = hset;
       compositeFrame();
       if (row === col) {
         hoverInfo = `${fieldLabel(fields[row].key)}: ${fields[row].values.length} samples`;
@@ -198,18 +221,19 @@
       hoverY = e.clientY - outerRect.top - 8;
     } else if (hoverRow >= 0) {
       hoverRow = -1; hoverCol = -1; hoverInfo = '';
+      $hoveredFields = new Set();
       compositeFrame();
     }
   }
 
   function onCanvasLeave() {
-    if (hoverRow >= 0) { hoverRow = -1; hoverCol = -1; hoverInfo = ''; compositeFrame(); }
+    if (hoverRow >= 0) { hoverRow = -1; hoverCol = -1; hoverInfo = ''; $hoveredFields = new Set(); compositeFrame(); }
   }
 </script>
 
 <div class="splom-outer" bind:this={outerEl}>
   {#if n > 0}
-    <div class="splom-scaled" style="transform: translate(0, {offsetY}px) scale({scale}); width: {totalW}px; height: {totalH}px;">
+    <div class="splom-scaled" style="transform: translate(0, {offsetY}px) scale({scale}); width: {crop.w}px; height: {crop.h}px;">
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <canvas bind:this={canvas} on:mousemove={onCanvasMove} on:mouseleave={onCanvasLeave}></canvas>
     </div>
@@ -217,7 +241,7 @@
       <div class="mouse-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
     {/if}
   {:else}
-    <div class="splom-empty">Toggle fields in Summary view to show the scatterplot matrix.</div>
+    <div class="splom-empty">Select fields in the Analysis column to show the scatterplot matrix.</div>
   {/if}
 </div>
 

@@ -53,12 +53,12 @@
   // ~5.5px per character at font-size-xxs (9px) in vertical mode, plus padding
   $: labelH = Math.max(30, maxWordLen * 5.5 + 4);
 
-  function logVal(v) { return v > 0 ? Math.log10(v + 1) : 0; }
-
-  // Precompute bar heights reactively so Svelte tracks useLog dependency
+  // Precompute bar heights reactively so Svelte tracks useLog dependency.
+  // Log mode uses counts (which span orders of magnitude: 5 to 500+).
+  // Linear mode uses percentage values (all similar magnitude, shows proportional differences).
   $: barHeights = (() => {
     if (useLog) {
-      const logVals = displayWords.map(w => logVal(Math.abs(w.value)));
+      const logVals = displayWords.map(w => w.count > 0 ? Math.log10(w.count) : 0);
       const lmax = Math.max(...logVals, 0);
       return logVals.map(lv => lmax > 0 ? (lv / lmax) * 100 : 0);
     }

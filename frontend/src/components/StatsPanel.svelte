@@ -4,7 +4,7 @@
   Draggable vertical splits between columns.
 -->
 <script>
-  import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
+  import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight, hoveredFields } from '../lib/stores.js';
   import { collectNumericFields, summarize } from '../lib/stats.js';
   import { formatNumber } from '../lib/format.js';
   import { fieldLabel, fieldTooltip, sortFieldKeys } from '../lib/fields.js';
@@ -28,8 +28,13 @@
   $: fieldsB = $showStats && sourceBItems ? collectNumericFields(sourceBItems) : null;
 
   $: sortedKeys = sortFieldKeys(Object.keys(fieldsA));
+  // Initialize activeFields to all on first data load (null → all). After that, user controls it.
+  let initialized = false;
   $: {
-    if ($activeFields.size === 0 && sortedKeys.length > 0) $activeFields = new Set(sortedKeys);
+    if (!initialized && sortedKeys.length > 0) {
+      $activeFields = new Set(sortedKeys);
+      initialized = true;
+    }
   }
 
   function toggleField(key) {
@@ -42,6 +47,20 @@
 
   let splomLog = true;
   let wordsLog = false;
+
+  // Mouse-following tooltip for field bars (avoids Popover blocking adjacent fields)
+  let fieldTip = '';
+  let fieldTipX = 0;
+  let fieldTipY = 0;
+  let analysisEl;
+  function onFieldEnter(key) { fieldTip = fieldTooltip(key); $hoveredFields = new Set([key]); }
+  function onFieldMove(e) {
+    if (!analysisEl) return;
+    const r = analysisEl.getBoundingClientRect();
+    fieldTipX = e.clientX - r.left + 12;
+    fieldTipY = e.clientY - r.top - 8;
+  }
+  function onFieldLeave() { fieldTip = ''; $hoveredFields = new Set(); }
 
   $: splomFieldsA = sortedKeys
     .filter(key => $activeFields.has(key) && fieldsA[key])
@@ -80,13 +99,13 @@
   let hStartX = 0;
   let hStartW = 0;
 
-  let fieldsEl;
+  // analysisEl is bound to the analysis column (declared with mouse tooltip state above)
   let wordsEl;
 
   function startSplit(which, e) {
     hDrag = which; hStartX = e.clientX;
     if (which === 1) {
-      if (col1W === null && fieldsEl) col1W = fieldsEl.getBoundingClientRect().width;
+      if (col1W === null && analysisEl) col1W = analysisEl.getBoundingClientRect().width;
       hStartW = col1W || 0;
     } else {
       if (col3W === null && wordsEl) col3W = wordsEl.getBoundingClientRect().width;
@@ -123,7 +142,7 @@
   <div class="stats-panel" style="height: {$statsHeight}px;">
     <div class="stats-body">
       <!-- Left: Analysis (data source + field toggles) -->
-      <div class="col analysis-col" bind:this={fieldsEl}
+      <div class="col analysis-col" bind:this={analysisEl}
            style={col1W !== null ? `width: ${col1W}px; flex: none;` : ''}>
         <div class="col-fixed">
           <div class="section-label">Analysis</div>
@@ -140,14 +159,20 @@
         <div class="field-list">
           {#each sortedKeys as key}
             <FieldBar label={fieldLabel(key)} value={summaryValue(key)}
-                      tooltip={fieldTooltip(key)}
                       toggleable={true} active={$activeFields.has(key)}
-                      on:click={() => toggleField(key)} />
+                      highlighted={$hoveredFields.has(key)}
+                      on:click={() => toggleField(key)}
+                      on:mouseenter={() => onFieldEnter(key)}
+                      on:mousemove={onFieldMove}
+                      on:mouseleave={onFieldLeave} />
           {/each}
           {#if sortedKeys.length === 0}
             <FieldBar label="Stats" value="No numeric data" />
           {/if}
         </div>
+        {#if fieldTip}
+          <div class="mouse-tip" style="left: {fieldTipX}px; top: {fieldTipY}px;">{@html fieldTip}</div>
+        {/if}
       </div>
 
       <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -200,7 +225,7 @@
   }
   .col { min-height: 0; overflow: hidden; }
   .analysis-col {
-    flex: 1; min-width: 0;
+    flex: 1; min-width: 0; position: relative;
     display: flex; flex-direction: column;
     padding: var(--space-sm) var(--space-md);
   }
@@ -211,6 +236,11 @@
   .section-label {
     font-size: var(--font-size-xxs); text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--accent); flex-shrink: 0;
+  }
+  /* Separator extends full width past column padding */
+  .analysis-col .separator {
+    margin-left: calc(-1 * var(--space-md));
+    margin-right: calc(-1 * var(--space-md));
   }
   .col-header {
     display: flex; align-items: center; gap: var(--space-sm);

@@ -5,6 +5,66 @@
  */
 
 /**
+ * Find the tight bounding box of non-zero alpha pixels in a canvas.
+ * Scans from each edge inward, stopping at the first opaque pixel.
+ * Returns logical pixel coordinates (physical pixels ÷ dpr).
+ * Pure function.
+ *
+ * @param {HTMLCanvasElement} canvas - source canvas to scan
+ * @param {number} dpr - device pixel ratio used when rendering (physical = logical × dpr)
+ * @returns {{x: number, y: number, w: number, h: number}} bounding box in logical pixels
+ *
+ * >>> // Conceptually: a 4×4 canvas with alpha only at (1,1) and (2,2)
+ * >>> // findAlphaBounds(canvas, 1) → { x: 1, y: 1, w: 2, h: 2 }
+ */
+export function findAlphaBounds(canvas, dpr = 1) {
+  const pw = canvas.width;
+  const ph = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const data = ctx.getImageData(0, 0, pw, ph).data;
+
+  let minX = pw, maxX = -1, minY = ph, maxY = -1;
+
+  // Scan top-to-bottom for minY
+  for (let y = 0; y < ph && minY === ph; y++) {
+    const row = y * pw * 4;
+    for (let x = 0; x < pw; x++) {
+      if (data[row + x * 4 + 3] > 0) { minY = y; break; }
+    }
+  }
+  if (minY === ph) return { x: 0, y: 0, w: 0, h: 0 }; // fully transparent
+
+  // Scan bottom-to-top for maxY
+  for (let y = ph - 1; y >= minY && maxY === -1; y--) {
+    const row = y * pw * 4;
+    for (let x = 0; x < pw; x++) {
+      if (data[row + x * 4 + 3] > 0) { maxY = y; break; }
+    }
+  }
+
+  // Scan left-to-right for minX (within minY..maxY)
+  for (let x = 0; x < pw && minX === pw; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      if (data[(y * pw + x) * 4 + 3] > 0) { minX = x; break; }
+    }
+  }
+
+  // Scan right-to-left for maxX
+  for (let x = pw - 1; x >= minX && maxX === -1; x--) {
+    for (let y = minY; y <= maxY; y++) {
+      if (data[(y * pw + x) * 4 + 3] > 0) { maxX = x; break; }
+    }
+  }
+
+  return {
+    x: Math.floor(minX / dpr),
+    y: Math.floor(minY / dpr),
+    w: Math.ceil((maxX - minX + 1) / dpr),
+    h: Math.ceil((maxY - minY + 1) / dpr),
+  };
+}
+
+/**
  * Set up a canvas for high-DPI rendering with 2x supersampling.
  * Canvas pixel dimensions = CSS size × devicePixelRatio × 2 for extra sharpness
  * when zooming in with the browser.

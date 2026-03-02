@@ -42,6 +42,7 @@ export const statsSourceA = writable('results');  // 'results' | 'dataset' | 'se
 export const statsSourceB = writable('none');      // 'results' | 'dataset' | 'selection' | 'none'
 // statsView removed — all three views shown side by side now
 export const activeFields = writable(new Set());  // toggled fields for scatterplot matrix
+export const hoveredFields = writable(new Set()); // field keys currently highlighted across all components
 
 // --- Filters ---
 export const filters = writable({});

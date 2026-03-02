@@ -1,5 +1,5 @@
 <script>
-  import { showFilters, showStats, filters, histogramData, metadataStats, logScale, hoveredItem, thumbFilter, favFilter, activeFields } from '../lib/stores.js';
+  import { showFilters, showStats, filters, histogramData, metadataStats, logScale, hoveredItem, thumbFilter, favFilter, activeFields, hoveredFields } from '../lib/stores.js';
   import { getNestedValue } from '../lib/sort.js';
   import { availableFields } from '../lib/fields.js';
   import { createEventDispatcher } from 'svelte';
@@ -9,7 +9,7 @@
   const dispatch = createEventDispatcher();
 
   $: allFields = availableFields($metadataStats);
-  $: fields = $showStats && $activeFields.size > 0
+  $: fields = $showStats
     ? allFields.filter(f => $activeFields.has(f.key))
     : allFields;
 
@@ -44,22 +44,39 @@
 </script>
 
 <div class="panel filter-panel" class:visible={$showFilters}>
-  <div class="filter-grid">
-    {#each fields as def (def.key)}
-      <HistogramFilter
-        label={def.label}
-        description={def.description || ''}
-        histogram={$histogramData[def.key] || null}
-        useLog={$logScale}
-        indicatorValue={$hoveredItem ? getNestedValue($hoveredItem, def.key) : null}
-        bind:min={mins[def.key]}
-        bind:max={maxs[def.key]}
-        step={def.step}
-        count={$histogramData[def.key]?.count ?? def.count}
-        on:change={onFilterChange}
-      />
-    {/each}
-  </div>
+  {#if fields.length > 0}
+    <div class="filter-grid">
+      {#each fields as def (def.key)}
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div on:mouseenter={() => $hoveredFields = new Set([def.key])}
+             on:mouseleave={() => $hoveredFields = new Set()}>
+          <HistogramFilter
+            label={def.label}
+            description={def.description || ''}
+            histogram={$histogramData[def.key] || null}
+            useLog={$logScale}
+            highlighted={$hoveredFields.has(def.key)}
+            indicatorValue={$hoveredItem ? getNestedValue($hoveredItem, def.key) : null}
+            bind:min={mins[def.key]}
+            bind:max={maxs[def.key]}
+            step={def.step}
+            count={$histogramData[def.key]?.count ?? def.count}
+            on:change={onFilterChange}
+          />
+        </div>
+      {/each}
+    </div>
+  {:else if $showStats}
+    <div class="filter-empty">
+      Select fields in the Analysis panel to show filter histograms.
+      <button class="control" on:click={() => $showStats = false}>
+        <iconify-icon icon="mdi:chart-box-outline" inline></iconify-icon>
+        Hide Statistics
+      </button>
+    </div>
+  {:else}
+    <div class="filter-empty">No numeric fields available in this dataset.</div>
+  {/if}
   <div class="filter-toolbar">
     <button class="control" on:click={() => $logScale = !$logScale}
             title={$logScale ? 'Switch to linear Y-axis' : 'Switch to logarithmic Y-axis'}>
@@ -109,5 +126,11 @@
     display: flex;
     gap: var(--space-md);
     justify-content: flex-end;
+  }
+  .filter-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--space-md); padding: var(--space-2xl);
+    color: var(--text-dim); font-size: var(--font-size-control); text-align: center;
+    width: 100%;
   }
 </style>

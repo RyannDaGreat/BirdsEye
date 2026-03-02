@@ -16,6 +16,7 @@
   export let useLog = true;
   export let indicatorValue = null; // value to show as vertical line indicator
   export let count = null; // number of samples that have this field
+  export let highlighted = false; // cross-component hover highlight
 
   const dispatch = createEventDispatcher();
   const H = 36;
@@ -105,7 +106,7 @@
 
 <svelte:window on:mousemove={onMove} on:mouseup={onUp} />
 
-<div class="hf" class:inactive={!hasRange}>
+<div class="hf" class:inactive={!hasRange} class:highlighted>
   <div class="hf-row">
     <span class="hf-label-group">
       <span class="label-sm">
@@ -153,6 +154,8 @@
   .hf { width: 100%; transition: opacity 0.15s; }
   .hf.inactive { opacity: 0.3; }
   .hf.inactive:hover { opacity: 0.7; }
+  .hf.highlighted { opacity: 1 !important; }
+  .hf.highlighted .hf-chart { outline: 1px solid var(--accent); }
   .hf-row {
     display: flex; align-items: center; gap: var(--space-sm);
     margin-bottom: var(--space-xs);

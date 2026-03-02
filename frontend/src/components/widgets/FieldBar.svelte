@@ -13,20 +13,29 @@
   export let hasDesc = false;  // true if tooltip exists (for cursor styling)
   export let toggleable = false;  // true in stats panel for scatterplot matrix field selection
   export let active = false;  // whether this field is toggled on
+  export let highlighted = false;  // cross-component hover highlight
 </script>
 
 {#if tooltip}
   <Popover text={tooltip}>
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
     <span slot="trigger" class="field-bar" class:has-desc={hasDesc || !!tooltip}
-          class:toggleable class:active on:click>
+          class:toggleable class:active class:highlighted on:click on:mouseenter on:mousemove on:mouseleave
+          title={toggleable ? 'Click to toggle' : ''}>
+      {#if toggleable}
+        <iconify-icon class="toggle-icon" icon={active ? 'mdi:checkbox-marked' : 'mdi:checkbox-blank-outline'} inline></iconify-icon>
+      {/if}
       <span class="field-label">{label}:</span>
       <span class="field-value">{value}</span>
     </span>
   </Popover>
 {:else}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <span class="field-bar" class:toggleable class:active on:click>
+  <span class="field-bar" class:toggleable class:active class:highlighted on:click on:mouseenter on:mousemove on:mouseleave
+        title={toggleable ? 'Click to toggle' : ''}>
+    {#if toggleable}
+      <iconify-icon class="toggle-icon" icon={active ? 'mdi:checkbox-marked' : 'mdi:checkbox-blank-outline'} inline></iconify-icon>
+    {/if}
     <span class="field-label">{label}:</span>
     <span class="field-value">{value}</span>
   </span>
@@ -50,4 +59,6 @@
   .toggleable:not(.active) { opacity: 0.3; }
   .toggleable:not(.active):hover { opacity: 0.7; }
   .active { border-color: var(--accent); }
+  .highlighted { border-color: var(--accent); opacity: 1 !important; background: var(--surface2); }
+  .toggle-icon { font-size: var(--font-size-xs); flex-shrink: 0; }
 </style>
