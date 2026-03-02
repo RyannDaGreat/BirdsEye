@@ -3,9 +3,12 @@
   Label is dim, value is accent. Used in stats panel, detail panel, anywhere fields appear.
   Optionally wraps in a Popover for tooltip on hover.
   When toggleable=true, clicking toggles the active state (for scatterplot matrix field selection).
+  When fieldKey is set, automatically participates in cross-component field highlighting
+  via the hoveredFields store (sets on mouseenter, clears on mouseleave, reacts to external changes).
 -->
 <script>
   import Popover from './Popover.svelte';
+  import { hoveredFields } from '../../lib/stores.js';
 
   export let label = '';
   export let value = '';
@@ -13,14 +16,21 @@
   export let hasDesc = false;  // true if tooltip exists (for cursor styling)
   export let toggleable = false;  // true in stats panel for scatterplot matrix field selection
   export let active = false;  // whether this field is toggled on
-  export let highlighted = false;  // cross-component hover highlight
+  export let fieldKey = '';  // raw field key for cross-component hover (empty = no coupling)
+
+  // Cross-component highlight: driven by hoveredFields store when fieldKey is set
+  $: highlighted = fieldKey ? $hoveredFields.has(fieldKey) : false;
+
+  function onEnter() { if (fieldKey) $hoveredFields = new Set([fieldKey]); }
+  function onLeave() { if (fieldKey) $hoveredFields = new Set(); }
 </script>
 
 {#if tooltip}
   <Popover text={tooltip}>
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
     <span slot="trigger" class="field-bar" class:has-desc={hasDesc || !!tooltip}
-          class:toggleable class:active class:highlighted on:click on:mouseenter on:mousemove on:mouseleave
+          class:toggleable class:active class:highlighted on:click
+          on:mouseenter={onEnter} on:mousemove on:mouseleave={onLeave}
           title={toggleable ? 'Click to toggle' : ''}>
       {#if toggleable}
         <iconify-icon class="toggle-icon" class:active icon={active ? 'mdi:check' : 'mdi:close'} inline></iconify-icon>
@@ -31,7 +41,8 @@
   </Popover>
 {:else}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <span class="field-bar" class:toggleable class:active class:highlighted on:click on:mouseenter on:mousemove on:mouseleave
+  <span class="field-bar" class:toggleable class:active class:highlighted on:click
+        on:mouseenter={onEnter} on:mousemove on:mouseleave={onLeave}
         title={toggleable ? 'Click to toggle' : ''}>
     {#if toggleable}
       <iconify-icon class="toggle-icon" class:active icon={active ? 'mdi:check' : 'mdi:close'} inline></iconify-icon>

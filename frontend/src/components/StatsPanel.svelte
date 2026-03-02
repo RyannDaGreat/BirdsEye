@@ -4,7 +4,7 @@
   Draggable vertical splits between columns.
 -->
 <script>
-  import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight, hoveredFields } from '../lib/stores.js';
+  import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
   import { collectNumericFields, summarize } from '../lib/stats.js';
   import { formatNumber } from '../lib/format.js';
   import { fieldLabel, fieldTooltip, sortFieldKeys } from '../lib/fields.js';
@@ -53,14 +53,12 @@
   let fieldTipX = 0;
   let fieldTipY = 0;
   let analysisEl;
-  function onFieldEnter(key) { fieldTip = fieldTooltip(key); $hoveredFields = new Set([key]); }
   function onFieldMove(e) {
     if (!analysisEl) return;
     const r = analysisEl.getBoundingClientRect();
     fieldTipX = e.clientX - r.left + 12;
     fieldTipY = e.clientY - r.top - 8;
   }
-  function onFieldLeave() { fieldTip = ''; $hoveredFields = new Set(); }
 
   $: splomFieldsA = sortedKeys
     .filter(key => $activeFields.has(key) && fieldsA[key])
@@ -159,12 +157,12 @@
         <div class="field-list">
           {#each sortedKeys as key}
             <FieldBar label={fieldLabel(key)} value={summaryValue(key)}
+                      fieldKey={key}
                       toggleable={true} active={$activeFields.has(key)}
-                      highlighted={$hoveredFields.has(key)}
                       on:click={() => toggleField(key)}
-                      on:mouseenter={() => onFieldEnter(key)}
+                      on:mouseenter={() => { fieldTip = fieldTooltip(key); }}
                       on:mousemove={onFieldMove}
-                      on:mouseleave={onFieldLeave} />
+                      on:mouseleave={() => { fieldTip = ''; }} />
           {/each}
           {#if sortedKeys.length === 0}
             <FieldBar label="Stats" value="No numeric data" />

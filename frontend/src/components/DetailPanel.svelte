@@ -105,6 +105,7 @@
             label={fieldLabel(key)}
             value={formatNumber(value)}
             tooltip={fieldTooltip(key)}
+            fieldKey={key}
           />
         {/each}
       </div>
