@@ -11,7 +11,7 @@
 | **Shard** | Two-level hex directory prefix from sha256 of sample_id. First 2 chars / next 2 chars (e.g., `ae/d3/`). Creates up to 65,536 buckets. |
 | **Bucket** | A shard2-level directory (`samples/<s1>/<s2>/`) containing sample dirs. One of 65,536 possible locations. |
 | **Artifact** | A file produced by a processor in a sample directory. Types: image (viewable in UI), data (JSON/numpy). |
-| **Field** | A named numeric value per video (e.g., `duration`, `clip_std`, `flow_mean_magnitude`). Declared by processors. The unit of sort/filter/display in the frontend. |
+| **Field** | A named per-video value (numeric or string). Declared by processors or intrinsic to the dataset. Sortable. The unit of sort/filter/display in the frontend. Subtypes: **Numeric Field** (e.g., `duration`, `clip_std`) — filterable by range, histogrammable, scatterplottable, shown in numeric field bars. **String Field** (e.g., `caption`, `video_name`) — searchable and sortable alphabetically but not range-filterable. |
 | **Processor** | A Python module in `preprocess/processors/` subclassing `Processor`. Auto-discovered. Produces artifacts and declares fields. |
 | **Cache** | `datasets/<name>/cache/`. Aggregated data derived from samples: merged JSON dicts, FAISS indices. Fully regenerable by the aggregator. |
 | **Cache Manifest** | `cache/cache_manifest.json`. Tracks which samples have been aggregated, timestamps, counts. |
@@ -28,11 +28,16 @@
 | **Ingest** | The processor that opens the best proxy video once via PyAV and extracts all frame-based artifacts (thumbnails, sprite sheet) plus metadata. Depends on compress. All downstream processors work on these extracted files, never touching the raw video again. |
 | **Enriched** | A search result with `metadata` and `stats` dicts attached by the server before returning to frontend. |
 | **Hull** | Convex hull search. Finds videos nearest to the centroid of selected videos' embeddings. |
-| **Field Bar** | A UI chip showing a field label (dim) and value (accent). Shared component (`FieldBar.svelte`) used in both stats panel and detail panel. Two parts: label (gray, left) and value (blue/accent, right). |
+| **Field Bar** | A UI chip showing a numeric field label (dim) and value (accent). Shared component (`FieldBar.svelte`) used in both stats panel and detail panel. Two parts: label (gray, left) and value (blue/accent, right). Only displays numeric fields. In the stats panel, field bars are toggleable (click to include/exclude from scattergram). |
 | **Ternary Filter** | A 3-state UI toggle cycling Any → Only → None. Used for thumbnail and favorites filtering. |
 | **Caption** | AI-generated text description of a video from the raw Pexels metadata. |
 | **FZF** | Fuzzy finder syntax used for text search. Space=AND, `\|`=OR, `!`=NOT, `'quoted'`=exact phrase. |
 | **Search Area** | The main tile grid (`VideoGrid.svelte`) where search results are displayed. Shows video cards in an auto-fill grid. In empty/error states, shows a centered message + BirdsEye logo watermark at 2/3 width, 8% opacity, matching text color. |
+| **Dynamic (modifier)** | A field modifier meaning "computed on-the-fly, not stored on disk." Orthogonal to the numeric/string axis — you can have a dynamic numeric field (e.g., CLIP Score) or a dynamic string field (future). Dynamic fields are ephemeral: they change when the query or context changes. In the sort dropdown, dynamic fields are visually distinguished with a marker prefix (via `dynamicFieldLabel()` pure function). Future: user-defined dynamic fields via an expression editor. |
+| **Scatterplot Matrix** | (abbrev. SPLOM) An N×N grid of pairwise scatter plots for all toggled numeric fields. Diagonal cells show per-field histograms, off-diagonal cells show scatter plots of field[row] vs field[col]. Canvas-rendered for performance. Lives in the statistics panel. Standard statistical visualization for exploring correlations between multiple variables at a glance. |
+| **Preview Button Bar** | Toolbar row above the video in the detail panel. Houses the favorite toggle and future action buttons. Not collapsible (always visible when panel is open). |
+| **Data Source Selector** | Two-row mode tab selector in the statistics panel. Top row (mandatory): Results / Dataset / Selection. Bottom row (optional): Results / Dataset / Selection / None. When bottom ≠ None, all statistics show differential (top minus bottom). |
+| **Quantized Transfer** | Compact data encoding for large numeric arrays. Field values are normalized to 0–255 (uint8) using known min/max from `metadata_stats`, sent as JSON arrays, gzipped. Frontend reconstructs real values: `value = min + (q / 255) * (max - min)`. Used for scattergram dataset-level sampling. |
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! HIGH PRIORITY: THEORY OF MIND IN ALL USER-FACING TEXT                      !!!
@@ -53,6 +58,22 @@ the ability to understand that other people don't share your knowledge.
   specific context (dataset name, search mode, what's available vs. what's missing).
 - **Dynamic, not canned.** Error hints should interpolate real values — the actual
   dataset name, the actual missing/available features. Not boilerplate.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! NON-NEGOTIABLE: YOU MUST USE CONCERNS.MD                                   !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+**`concerns.md` is append-only. It is this project's historical record of HOW the software
+came to be — including every mistake, wrong turn, and lesson learned along the way.**
+
+- **Every mistake, bug, failed approach, and lesson learned MUST go into concerns.md** with timestamps.
+  This is how we learn from our mistakes. If it's not in concerns.md, we'll repeat it.
+- **When removing resolved items from the manifest**, dump the history into concerns.md first.
+  The manifest stays clean and current; concerns.md keeps the full record.
+- **concerns.md is NEVER trimmed or cleaned up.** It grows forever. That's the point.
+- **Motivation**: A future Claude session (or human) should be able to read concerns.md and
+  understand every wrong turn, every failed experiment, every architectural decision that was
+  reversed — and WHY. This prevents repeating mistakes across sessions.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! NON-NEGOTIABLE: MANIFEST-FIRST DEVELOPMENT                                !!!
@@ -94,10 +115,11 @@ A self-contained web application for searching through video datasets using:
 1. **FZF-style fuzzy text search** through video captions
 2. **CLIP semantic search** through pre-computed image embeddings via FAISS
 3. **Selection-based refinement** — select videos, then search within / around them (convex hull)
-4. **Export** — copy video names as newline-separated text
+4. **Export** — copy or download video names as newline-separated text. "Export All" must export ALL matching results from the current search (not just the visible page). "Export Selected" exports only manually selected videos. Both modes support copy-to-clipboard and download-as-file (`.txt`, browser save-as dialog, floppy disk icon `mdi:content-save`).
 5. **Filterable by any numeric field** — histogram range selectors with draggable handles
-6. **Sortable by any field** — ascending/descending toggle, random shuffle
+6. **Sortable by any field** — ascending/descending toggle, random shuffle. Dynamic fields (computed on-the-fly, like CLIP Score) appear in the sort dropdown with a marker prefix via `dynamicFieldLabel()`. Currently the only dynamic field is CLIP Score (cosine similarity of query text vs stored CLIP embedding, computed server-side in all search modes when sorting by score).
 7. **Pluggable processing** — add new analyses by dropping a Python file
+8. **Statistics panel** — resizable analytics area with multiple views (Summary, Scattergram, Words). Data source selector chooses what population to analyze (Results, Dataset, Selection) with optional differential (A minus B). Scattergram uses sampled + quantized data transfer for dataset-level views.
 
 ## Architecture Overview
 
@@ -1177,7 +1199,7 @@ Prioritized by impact-to-code-added ratio. Minimal additions, maximal robustness
 Never prioritize security work in this project.
 
 **Skipped items** (not worth the code):
-- B3 (export all endpoint) — adds a whole new API endpoint for a rare operation. Not needed.
+- B3 (export all endpoint) — NOW NEEDED. "Export All" was broken: it only exported the current page because `$currentResults` is one page of results. Requires a server-side endpoint (`/api/export/names`) that runs the same search+filters but returns only video names without pagination/enrichment.
 - B7 (getsize FUSE crash) — hypothetical. Never actually observed this crash. Skip for now.
 - D2 (concurrent aggregation lock) — `fcntl.flock()` is unreliable on NFS/FUSE (may silently
   not lock, or hang forever). Just don't run two aggregators simultaneously. Add a comment.

@@ -64,7 +64,7 @@ export function fieldTooltip(key) {
   if (!desc) return '';
   const source = fieldSource(key);
   const sourceHtml = source
-    ? `<br/><span style="opacity:0.5;font-style:italic">Source: ${source}</span>`
+    ? `<br/><span style="opacity:0.5;font-style:italic">Source: ${source} (${key})</span>`
     : '';
   return `<strong>${fieldLabel(key)}</strong><br/>${desc}${sourceHtml}`;
 }

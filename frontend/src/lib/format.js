@@ -98,6 +98,20 @@ export function highlightTerms(text, query) {
 }
 
 /**
+ * Prepend a marker to a dynamic field name for display in sort dropdowns.
+ * Dynamic fields are computed on-the-fly (not stored on disk).
+ * The marker is defined here so it can be changed project-wide in one place.
+ * Pure function.
+ *
+ * Examples:
+ *   dynamicFieldLabel('CLIP Score')  → '✦ CLIP Score'
+ *   dynamicFieldLabel('Video Score') → '✦ Video Score'
+ */
+export function dynamicFieldLabel(name) {
+  return `✦ ${name}`;
+}
+
+/**
  * Format a file size in bytes to human-readable string (KB, MB, GB, etc.).
  * Uses 1024-based units to match rp.human_readable_file_size behavior.
  * Pure function.

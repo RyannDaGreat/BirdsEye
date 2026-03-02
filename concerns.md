@@ -263,3 +263,108 @@ Six frontend improvements implemented from user feedback:
 - Detail panel metadata fields (duration, fps, etc.) now show Popover tooltips on hover, same as filter question marks
 - Histogram grid column width adjusted per user feedback
 - Min/max input boxes narrowed per user feedback
+
+## 2026-03-01 — Bird's Eye Logo (4 iterations of mistakes)
+
+### Mistake 1: Logo pushed UI elements down
+- Made the logo a large inline element → pushed the header taller and displaced elements below
+- **Lesson**: Large decorative elements should float, not participate in layout flow
+
+### Mistake 2: Logo pushed off screen with position:absolute + right:100%
+- Used `position: absolute; right: 100%` to float it left of the title → pushed it off the left edge of the viewport. Only half visible.
+- **Lesson**: `right: 100%` positions relative to the parent's left edge, so it goes OUTSIDE the container
+
+### Mistake 3: Logo invisible with height:0 + overflow:visible
+- Tried `height: 0; overflow: visible` trick to prevent vertical push → logo completely disappeared
+- **Root cause**: CSS `mask-image` requires actual element dimensions to render. A 0-height element has no area, so the mask produces nothing visible.
+- **Lesson**: CSS mask-image needs real width AND height on the element. You cannot use height:0 tricks with masked elements.
+
+### Mistake 4: Final working solution
+- Placeholder wrapper `<span>` at text line-height (1.2em) for horizontal push only
+- Absolutely positioned logo at 3.25em centered on the wrapper via `top: 50%; left: 50%; transform: translate(-50%, -50%)`
+- **Lesson**: Separate layout participation (wrapper) from visual rendering (absolute positioned child). The wrapper is tiny for layout, the child is large for display.
+
+## 2026-03-01 — Ghost Preview Section (raft_flow)
+
+### Bug
+- raft_flow processor declared a preview section for `flow_sprite.jpg` but never generates that file
+- UI showed "failed to load flow_sprite.jpg" in the preview panel
+- **Root cause**: Copy-paste from another processor's preview_sections without updating filenames
+- **Fix**: Removed the phantom preview section. raft_flow produces only `flow_stats.json` (numeric data), no visual artifacts.
+- **Lesson**: Never declare a preview section for an artifact you don't generate. Preview sections must correspond 1:1 to actual output files.
+
+## 2026-03-01 — JS Code Quality Slip
+
+### Issue
+- `humanFilesize()` was written inline in a Svelte component without JSDoc, without being labeled as pure, without examples
+- User caught it: "I think you're getting sloppy with the pure functions"
+- **Root cause**: Treating JS as second-class to Python. The same functional programming standards apply to ALL languages in this project.
+- **Fix**: Extracted to `format.js` as a proper pure function with JSDoc and examples
+- **Lesson**: JS pure functions must follow the EXACT same standards as Python: labeled "Pure function" in docstring, have JSDoc with examples, live in shared modules — never inline in Svelte components.
+
+## 2026-03-01 — Video Sync (Event-Based Approach Failed)
+
+### Failed Approach: Event propagation
+- Listen for play/pause/seeked on ALL videos, propagate to siblings
+- Added reentrant guard flags to prevent infinite loops
+- **Result**: Infinite feedback loops and flickering. Even with guards, `currentTime` assignment triggers `seeked` events asynchronously, which fire after the guard is released.
+- **Why it fails**: Browser video events are async. Setting `video.currentTime = X` doesn't fire `seeked` synchronously — it fires later in the event loop. By then, the guard flag has been cleared, so the handler re-triggers. This is fundamentally unsolvable with event-based sync.
+
+### Working Approach: Master-slave + requestAnimationFrame
+- First video is master (has controls), all others are slaves (NO controls, NO event listeners)
+- Master's play/pause events control slaves directly
+- `requestAnimationFrame` loop continuously checks drift: if master-slave time difference > 100ms, snap slave to master
+- This is the industry standard for professional video comparison tools (confirmed by 10-agent research frenzy)
+- **Lesson**: Never use bidirectional event listeners for video sync. Always use unidirectional master-slave.
+
+## 2026-03-01 — Bash Argument Parsing Fragility
+
+### Bug
+- `run.sh` accepted `--google google` silently — unknown args fell through to the port variable
+- No validation of argument names or values
+- **Fix**: Initially added bash validation, then recognized bash is fundamentally wrong for this. Refactored entirely to Python Fire.
+- **Lesson**: Bash `$1`/`$2` parsing is fragile and unsafe. Use Python Fire for any non-trivial argument handling. Fire gives typed args, auto `--help`, validation, and error messages for free.
+
+## 2026-03-01 — Raw Error Messages (Theory of Mind Violation)
+
+### Bug
+- API errors returned raw technical messages like "Vector index clip not available for dataset pexels"
+- Users have no idea what "vector index" or "clip" means in this context
+- `checkedJson()` in the frontend was throwing away the JSON body of error responses, showing only HTTP status text
+
+### Fix (two-part)
+1. **Frontend**: `checkedJson()` now reads JSON body from error responses, extracts `error` and `hint` fields, attaches `hint` to the Error object
+2. **Server**: All error responses now return `{error: "technical message", hint: "layman explanation"}` where the hint is specific, dynamic (interpolates dataset name, available features), and written for someone who has never seen the codebase
+
+### Lesson
+- **Theory of Mind**: Every user-facing message must be written for a newcomer. Don't say "vector index" — say "image similarity search." Don't say "may not have been processed" when you KNOW it wasn't. Be specific, be dynamic, interpolate real values.
+- This principle was elevated to HIGH PRIORITY at the top of the manifest.
+
+## 2026-03-01 — "Export All" Was Broken Since Day One
+
+### Bug
+- "Export All" button exported only the current page of results (e.g., 50 out of 80,000 matches)
+- `$currentResults` store contains only one page of paginated results
+- The code: `exportText = $currentResults.map(r => r.video_name).join('\n')` — looks correct at a glance, but `$currentResults` is NOT "all results," it's "current page results"
+
+### Root Cause
+- During the code audit, this was identified as "B3 (export all endpoint)" and explicitly marked "not needed" and "not worth the code." This was WRONG — the feature was broken without it.
+- **Lesson**: Before dismissing a bug fix as "not needed," verify the CURRENT behavior actually works. The audit assumed export worked correctly without the endpoint. It didn't.
+
+### Fix (planned)
+- New `/api/export/names` endpoint that runs the same search + filters server-side but returns only video names, no pagination, no enrichment
+- Frontend calls this endpoint for "Export All" instead of reading `$currentResults`
+
+## 2026-03-02 — Field Taxonomy Clarification
+
+### Issue
+- Glossary defined "Field" as "a named numeric value per video" — too narrow
+- Caption is a field (you can sort by it) but it's not numeric
+- "Dynamic" was initially classified as a field subtype, but it's actually a modifier orthogonal to numeric/string
+
+### Resolution
+- **Field** = any named per-video value (numeric or string)
+- **Numeric Field** / **String Field** = the type axis
+- **Dynamic** = the persistence axis (stored on disk vs computed on-the-fly)
+- These are orthogonal: you can have a dynamic numeric field (CLIP Score) or a stored string field (caption)
+- Updated glossary to reflect this 2×2 taxonomy
