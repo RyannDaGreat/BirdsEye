@@ -237,10 +237,11 @@
     font-size: var(--font-size-xxs); text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--accent); flex-shrink: 0;
   }
-  /* Separator extends full width past column padding */
+  /* Separator extends full width past column padding, with breathing room below */
   .analysis-col .separator {
     margin-left: calc(-1 * var(--space-md));
     margin-right: calc(-1 * var(--space-md));
+    margin-bottom: var(--space-sm);
   }
   .col-header {
     display: flex; align-items: center; gap: var(--space-sm);
