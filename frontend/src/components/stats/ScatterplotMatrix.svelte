@@ -53,10 +53,18 @@
     return Math.min(1, r.width / crop.w, r.height / crop.h);
   }
 
+  // Read CSS theme colors once for canvas rendering
+  function cssVar(name) { return getComputedStyle(document.body).getPropertyValue(name).trim(); }
+
   /** Render all expensive content to offscreen cache. Called once per data/log change. */
   async function buildCache() {
     await tick();
     if (n === 0) return;
+
+    const colorAccent = cssVar('--accent');
+    const colorSelected = cssVar('--selected');
+    const colorBorder = cssVar('--border');
+    const colorDim = cssVar('--text-dim');
 
     dpr = (window.devicePixelRatio || 1) * 2;
     cacheCanvas = document.createElement('canvas');
@@ -66,7 +74,7 @@
     ctx.scale(dpr, dpr);
 
     // Grid lines
-    ctx.strokeStyle = '#333';
+    ctx.strokeStyle = colorBorder;
     ctx.lineWidth = 1;
     for (let i = 0; i <= n; i++) {
       const x = PAD_LEFT + i * CELL;
@@ -84,11 +92,11 @@
         ctx.beginPath(); ctx.rect(ox, oy, CELL, CELL); ctx.clip();
         ctx.translate(ox, oy);
         if (row === col) {
-          if (fieldsB) drawHistogram(ctx, maybeLog(fieldsB[row].values), HIST_BINS, CELL, CELL, '#ff6b35');
-          drawHistogram(ctx, maybeLog(fields[row].values), HIST_BINS, CELL, CELL, '#4a9eff');
+          if (fieldsB) drawHistogram(ctx, maybeLog(fieldsB[row].values), HIST_BINS, CELL, CELL, colorSelected);
+          drawHistogram(ctx, maybeLog(fields[row].values), HIST_BINS, CELL, CELL, colorAccent);
         } else {
-          if (fieldsB) drawScatter(ctx, maybeLog(fieldsB[col].values), maybeLog(fieldsB[row].values), CELL, CELL, '#ff6b35', 0.2);
-          drawScatter(ctx, maybeLog(fields[col].values), maybeLog(fields[row].values), CELL, CELL, '#4a9eff', 0.3);
+          if (fieldsB) drawScatter(ctx, maybeLog(fieldsB[col].values), maybeLog(fieldsB[row].values), CELL, CELL, colorSelected, 0.2);
+          drawScatter(ctx, maybeLog(fields[col].values), maybeLog(fields[row].values), CELL, CELL, colorAccent, 0.3);
         }
         ctx.restore();
       }
@@ -97,7 +105,7 @@
     // Column labels (45° diagonal)
     ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#888';
+    ctx.fillStyle = colorDim;
     for (let i = 0; i < n; i++) {
       ctx.save();
       ctx.translate(PAD_LEFT + i * CELL + CELL / 2, PAD_TOP - 4);
@@ -109,7 +117,7 @@
     // Row labels
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#888';
+    ctx.fillStyle = colorDim;
     for (let i = 0; i < n; i++) {
       ctx.fillText(fieldLabel(fields[i].key), PAD_LEFT - 4, PAD_TOP + i * CELL + CELL / 2);
     }
@@ -164,7 +172,7 @@
     // Highlighted labels (overdraw on top of cached dim labels)
     if ((hoverRow >= 0 && hoverRow < n) || (hoverCol >= 0 && hoverCol < n)) {
       ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
-      ctx.fillStyle = '#4a9eff';
+      ctx.fillStyle = cssVar('--accent');
       if (hoverCol >= 0 && hoverCol < n) {
         ctx.textAlign = 'left';
         ctx.save();
