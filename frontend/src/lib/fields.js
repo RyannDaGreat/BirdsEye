@@ -11,15 +11,21 @@
 import { get } from 'svelte/store';
 import { fieldInfo } from './stores.js';
 
+/** Unicode marker prepended to dynamic field labels (computed on-the-fly, not stored). */
+const DYNAMIC_MARKER = '\u2726'; // ✦
+
 /**
  * Get a human-readable label for a field key.
  * Looks up from server-provided field_info first, falls back to auto-formatting.
+ * Dynamic fields (server-flagged) get the ✦ marker prepended.
  * Pure function.
  */
 export function fieldLabel(key) {
   const info = get(fieldInfo);
-  if (info.fields && info.fields[key] && info.fields[key].label) {
-    return info.fields[key].label;
+  if (info.fields && info.fields[key]) {
+    const f = info.fields[key];
+    const label = f.label || key.replace(/_/g, ' ');
+    return f.dynamic ? `${DYNAMIC_MARKER} ${label}` : label;
   }
   return key.replace(/_/g, ' ');
 }
