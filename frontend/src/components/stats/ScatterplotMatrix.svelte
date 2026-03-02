@@ -23,6 +23,7 @@
   let hoverY = 0;
   let hoverRow = -1;
   let hoverCol = -1;
+  let localHover = false;  // true when mouse is over canvas (prevents reacting to own hoveredFields changes)
 
   // Offscreen cache for the expensive content
   let cacheCanvas = null;
@@ -196,8 +197,32 @@
   onDestroy(() => { if (observer) observer.disconnect(); });
   $: if (outerEl && observer) { observer.disconnect(); observer.observe(outerEl); }
 
+  // React to external hoveredFields changes (from field bars, histograms)
+  $: {
+    if (!localHover && cacheCanvas && n > 0) {
+      const hf = $hoveredFields;
+      if (hf.size > 0) {
+        const indices = [];
+        for (const key of hf) {
+          const idx = fields.findIndex(f => f.key === key);
+          if (idx >= 0) indices.push(idx);
+        }
+        if (indices.length === 1) {
+          hoverRow = indices[0]; hoverCol = indices[0];
+        } else if (indices.length >= 2) {
+          hoverRow = indices[0]; hoverCol = indices[1];
+        }
+        compositeFrame();
+      } else if (hoverRow >= 0) {
+        hoverRow = -1; hoverCol = -1;
+        compositeFrame();
+      }
+    }
+  }
+
   function onCanvasMove(e) {
     if (n === 0) return;
+    localHover = true;
     const rect = canvas.getBoundingClientRect();
     // Convert display coords to original (pre-crop) coords
     const mx = (e.clientX - rect.left) / scale + crop.x;
@@ -227,6 +252,7 @@
   }
 
   function onCanvasLeave() {
+    localHover = false;
     if (hoverRow >= 0) { hoverRow = -1; hoverCol = -1; hoverInfo = ''; $hoveredFields = new Set(); compositeFrame(); }
   }
 </script>
