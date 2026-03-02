@@ -139,6 +139,18 @@ export async function downloadSamples(dataset, videoNames) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Fetch sampled + quantized scatter data for a dataset.
+ * Returns {fields: string[], ranges: {field: [min, max]}, samples: number[][]}.
+ * Pure function (returns promise).
+ */
+export async function fetchScatterData(dataset, sampleSize = 5000, fields = null) {
+  let url = `/api/scatter_data/${dataset}?sample_size=${sampleSize}`;
+  if (fields) url += `&fields=${fields.join(',')}`;
+  const resp = await fetch(url);
+  return checkedJson(resp);
+}
+
 /** Convert filters object to query string params. Pure function. */
 function filtersToQueryString(filters) {
   return Object.entries(filters || {})

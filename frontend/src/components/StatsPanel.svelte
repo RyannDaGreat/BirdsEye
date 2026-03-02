@@ -8,6 +8,8 @@
   import { formatNumber } from '../lib/format.js';
   import { fieldLabel, fieldTooltip } from '../lib/fields.js';
   import FieldBar from './widgets/FieldBar.svelte';
+  import ScatterplotMatrix from './stats/ScatterplotMatrix.svelte';
+  import WordFrequency from './stats/WordFrequency.svelte';
   import ModeTabRow from './widgets/ModeTabRow.svelte';
   import DataSourceSelector from './stats/DataSourceSelector.svelte';
 
@@ -45,6 +47,16 @@
     if (s.has(key)) s.delete(key); else s.add(key);
     $activeFields = s;
   }
+
+  // --- Scatterplot Matrix data ---
+  $: splomFieldsA = Object.entries(fieldsA)
+    .filter(([key]) => $activeFields.has(key))
+    .map(([key, values]) => ({ key, values }));
+  $: splomFieldsB = fieldsB
+    ? Object.entries(fieldsB)
+        .filter(([key]) => $activeFields.has(key))
+        .map(([key, values]) => ({ key, values }))
+    : null;
 
   function fmt(v) { return formatNumber(v); }
 
@@ -111,9 +123,9 @@
           {/if}
         </div>
       {:else if $statsView === 'scatterplot'}
-        <div class="placeholder">Scatterplot Matrix — coming next</div>
+        <ScatterplotMatrix fields={splomFieldsA} fieldsB={splomFieldsB} />
       {:else if $statsView === 'words'}
-        <div class="placeholder">Word Frequency — coming next</div>
+        <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} />
       {/if}
     </div>
   </div>

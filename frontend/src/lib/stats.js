@@ -25,6 +25,66 @@ export function collectNumericFields(items) {
   return fields;
 }
 
+/** Common English stop words for caption word frequency analysis. */
+const STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'is', 'it', 'as', 'was', 'are', 'were',
+  'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+  'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can',
+  'not', 'no', 'nor', 'so', 'if', 'then', 'than', 'that', 'this',
+  'these', 'those', 'which', 'who', 'whom', 'what', 'where', 'when',
+  'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+  'some', 'such', 'only', 'own', 'same', 'too', 'very', 'just', 'about',
+  'up', 'out', 'into', 'over', 'after', 'before', 'between', 'under',
+  'through', 'during', 'while', 'its', 'their', 'his', 'her', 'my',
+  'your', 'our', 'he', 'she', 'they', 'we', 'you', 'i', 'me', 'him',
+  'us', 'them', 'also', 'there', 'here',
+]);
+
+/**
+ * Compute word frequencies from caption text in result items.
+ * Returns top N words sorted by frequency, excluding stop words.
+ * Pure function.
+ *
+ * @param {object[]} items - result items with .caption property
+ * @param {number} topN - maximum number of words to return
+ * @returns {{word: string, count: number, pct: number}[]}
+ */
+export function wordFrequencies(items, topN = 30) {
+  const counts = {};
+  let total = 0;
+  for (const item of items) {
+    const caption = (item.caption || '').toLowerCase();
+    const words = caption.split(/[\s,.;:!?'"()\[\]{}\-/\\]+/).filter(w => w.length > 1 && !STOP_WORDS.has(w));
+    for (const w of words) {
+      counts[w] = (counts[w] || 0) + 1;
+      total++;
+    }
+  }
+  if (total === 0) return [];
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([word, count]) => ({ word, count, pct: count / total }));
+}
+
+/**
+ * Dequantize uint8 values (0-255) back to real values using known min/max.
+ * Pure function.
+ *
+ * @param {number[]} quantized - array of 0-255 values
+ * @param {number} min - original minimum
+ * @param {number} max - original maximum
+ * @returns {number[]}
+ *
+ * >>> dequantize([0, 128, 255], 0, 100)
+ * [0, ~50.2, 100]
+ */
+export function dequantize(quantized, min, max) {
+  const range = max - min;
+  return quantized.map(q => min + (q / 255) * range);
+}
+
 /**
  * Summarize an array of numbers: {mean, min, max, std}.
  * Pure function.

@@ -672,6 +672,73 @@ def create_app(port=8899):
 
         return histograms
 
+    @app.route("/api/scatter_data/<dataset>")
+    def scatter_data(dataset):
+        """
+        Return sampled + quantized numeric field data for scatterplot matrix.
+        Uses uint8 quantization (0-255) for compact transfer.
+        """
+        if dataset not in DATASETS:
+            return jsonify({"error": f"Unknown dataset: {dataset}"}), 404
+
+        ds = DATASETS[dataset]
+        sample_size = min(int(request.args.get("sample_size", 5000)), 10000)
+        requested_fields = request.args.get("fields", "").split(",") if request.args.get("fields") else None
+
+        # Collect all numeric values per video
+        meta = ds.get("video_metadata") or {}
+        stats_data = ds.get("video_stats") or {}
+        all_names = list(set(list(meta.keys()) + list(stats_data.keys())))
+
+        if not all_names:
+            return jsonify({"fields": [], "ranges": {}, "samples": []})
+
+        # Determine which fields to include
+        field_set = set()
+        for name in all_names[:100]:  # probe first 100 for field discovery
+            for src in [meta.get(name, {}), stats_data.get(name, {})]:
+                for k, v in src.items():
+                    if isinstance(v, (int, float)):
+                        field_set.add(k)
+        fields = sorted(field_set)
+        if requested_fields:
+            fields = [f for f in fields if f in set(requested_fields)]
+
+        # Get ranges from metadata_stats
+        ms = ds.get("metadata_stats") or {}
+        ranges = {}
+        for f in fields:
+            if f in ms:
+                ranges[f] = [ms[f].get("min", 0), ms[f].get("max", 1)]
+            else:
+                ranges[f] = [0, 1]
+
+        # Sample videos
+        n = len(all_names)
+        indices = np.random.choice(n, min(sample_size, n), replace=False)
+        sampled_names = [all_names[i] for i in indices]
+
+        # Build quantized data matrix
+        samples = []
+        for name in sampled_names:
+            row = []
+            m = meta.get(name, {})
+            s = stats_data.get(name, {})
+            valid = True
+            for f in fields:
+                v = m.get(f, s.get(f))
+                if v is None:
+                    valid = False
+                    break
+                lo, hi = ranges[f]
+                r = hi - lo if hi != lo else 1
+                q = int(np.clip(np.round((v - lo) / r * 255), 0, 255))
+                row.append(q)
+            if valid:
+                samples.append(row)
+
+        return jsonify({"fields": fields, "ranges": ranges, "samples": samples})
+
     @app.route("/api/search/fuzzy")
     def search_fuzzy():
         dataset = request.args.get("dataset", "pexels")
