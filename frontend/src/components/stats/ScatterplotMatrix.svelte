@@ -33,6 +33,7 @@
   let crop = { x: 0, y: 0, w: 0, h: 0 };
 
   const CELL = 80;
+  const HIST_BINS = 20;
   const PAD_LEFT = 150;
   const PAD_RIGHT = 150;
   const PAD_TOP = 150;
@@ -83,8 +84,8 @@
         ctx.beginPath(); ctx.rect(ox, oy, CELL, CELL); ctx.clip();
         ctx.translate(ox, oy);
         if (row === col) {
-          if (fieldsB) drawHistogram(ctx, maybeLog(fieldsB[row].values), 20, CELL, CELL, '#ff6b35');
-          drawHistogram(ctx, maybeLog(fields[row].values), 20, CELL, CELL, '#4a9eff');
+          if (fieldsB) drawHistogram(ctx, maybeLog(fieldsB[row].values), HIST_BINS, CELL, CELL, '#ff6b35');
+          drawHistogram(ctx, maybeLog(fields[row].values), HIST_BINS, CELL, CELL, '#4a9eff');
         } else {
           if (fieldsB) drawScatter(ctx, maybeLog(fieldsB[col].values), maybeLog(fieldsB[row].values), CELL, CELL, '#ff6b35', 0.2);
           drawScatter(ctx, maybeLog(fields[col].values), maybeLog(fields[row].values), CELL, CELL, '#4a9eff', 0.3);

@@ -119,8 +119,17 @@ const FIELD_ORDER = [
 ];
 
 /**
+ * Check if a field is dynamic (computed on-the-fly, not stored on disk).
+ * Pure function.
+ */
+export function isDynamicField(key) {
+  const info = get(fieldInfo);
+  return !!(info.fields && info.fields[key] && info.fields[key].dynamic);
+}
+
+/**
  * Sort field keys by preferred ordering.
- * Keys in FIELD_ORDER come first (in that order), rest follow alphabetically.
+ * Dynamic fields come first, then FIELD_ORDER, then alphabetical remainder.
  * Pure function.
  *
  * @param {string[]} keys - field keys to sort
@@ -130,9 +139,11 @@ const FIELD_ORDER = [
  * ['height', 'width', 'duration', 'fps', 'zzz']
  */
 export function sortFieldKeys(keys) {
-  const ordered = FIELD_ORDER.filter(k => keys.includes(k));
-  const rest = keys.filter(k => !FIELD_ORDER.includes(k)).sort();
-  return [...ordered, ...rest];
+  const dynamic = keys.filter(k => isDynamicField(k));
+  const nonDynamic = keys.filter(k => !isDynamicField(k));
+  const ordered = FIELD_ORDER.filter(k => nonDynamic.includes(k));
+  const rest = nonDynamic.filter(k => !FIELD_ORDER.includes(k)).sort();
+  return [...dynamic, ...ordered, ...rest];
 }
 
 export function availableFields(metadataStats) {

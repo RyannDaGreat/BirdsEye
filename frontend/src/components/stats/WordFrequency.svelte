@@ -11,6 +11,9 @@
   export let itemsB = null;
   export let useLog = false;
 
+  const MAX_WORDS = 150;       // max words to display
+  const MAX_WORDS_DIFF = 300;  // larger pool for differential mode (sorted + sliced to MAX_WORDS)
+
   let hoverIdx = -1;
   let tipX = 0;
   let tipY = 0;
@@ -27,8 +30,8 @@
     tipY = p.y;
   }
 
-  $: freqsA = wordFrequencies(itemsA, 150);
-  $: freqsB = itemsB ? wordFrequencies(itemsB, 300) : null;
+  $: freqsA = wordFrequencies(itemsA, MAX_WORDS);
+  $: freqsB = itemsB ? wordFrequencies(itemsB, MAX_WORDS_DIFF) : null;
   $: displayWords = computeDisplay(freqsA, freqsB);
 
   function computeDisplay(fA, fB) {
@@ -44,7 +47,7 @@
       isDiff: true,
     }));
     diffs.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-    return diffs.slice(0, 150);
+    return diffs.slice(0, MAX_WORDS);
   }
 
   $: nw = displayWords.length;
