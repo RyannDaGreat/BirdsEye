@@ -27,6 +27,7 @@ export function readStateFromURL() {
   if (params.has('fav')) state.favFilter = params.get('fav');
   if (params.has('logY')) state.logScale = params.get('logY') === '1';
   if (params.has('filters')) state.showFilters = params.get('filters') === '1';
+  if (params.has('statsH')) state.statsHeight = parseInt(params.get('statsH'));
 
   // Collect all min_*/max_* filter params
   const filters = {};
@@ -44,7 +45,7 @@ export function readStateFromURL() {
  * Write view state to the URL query string via history.replaceState.
  * Only includes non-default values to keep URLs clean.
  */
-export function writeStateToURL({ searchQuery, currentMode, currentDataset, currentSort, filters, currentPage, pageSize, thumbFilter, favFilter, logScale, showFilters }) {
+export function writeStateToURL({ searchQuery, currentMode, currentDataset, currentSort, filters, currentPage, pageSize, thumbFilter, favFilter, logScale, showFilters, statsHeight }) {
   const params = new URLSearchParams();
 
   if (searchQuery) params.set('q', searchQuery);
@@ -57,6 +58,7 @@ export function writeStateToURL({ searchQuery, currentMode, currentDataset, curr
   if (favFilter && favFilter !== 'any') params.set('fav', favFilter);
   if (logScale === false) params.set('logY', '0');
   if (showFilters) params.set('filters', '1');
+  if (statsHeight && statsHeight !== 200) params.set('statsH', statsHeight);
 
   // Add filter params
   if (filters) {

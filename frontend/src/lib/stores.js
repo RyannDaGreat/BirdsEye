@@ -36,6 +36,13 @@ export const favorites = writable(new Set());
 export const detailData = writable(null);  // full video_info response
 export const detailWidth = writable(380);
 
+// --- Statistics panel ---
+export const statsHeight = writable(200);
+export const statsSourceA = writable('results');  // 'results' | 'dataset' | 'selection'
+export const statsSourceB = writable('none');     // 'results' | 'dataset' | 'selection' | 'none'
+export const statsView = writable('summary');     // 'summary' | 'scatterplot' | 'words'
+export const activeFields = writable(new Set());  // toggled fields for scatterplot matrix
+
 // --- Filters ---
 export const filters = writable({});
 

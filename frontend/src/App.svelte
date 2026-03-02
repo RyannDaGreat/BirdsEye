@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels } from './lib/stores.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels, statsHeight } from './lib/stores.js';
   import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNames, downloadSamples } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
@@ -31,6 +31,7 @@
     favFilter: $favFilter,
     logScale: $logScale,
     showFilters: $showFilters,
+    statsHeight: $statsHeight,
   });
 
   onMount(async () => {
@@ -47,6 +48,7 @@
     if (urlState.favFilter) $favFilter = urlState.favFilter;
     if (urlState.logScale !== undefined) $logScale = urlState.logScale;
     if (urlState.showFilters !== undefined) $showFilters = urlState.showFilters;
+    if (urlState.statsHeight) $statsHeight = urlState.statsHeight;
     initialized = true;
 
     $datasets = await fetchDatasets();

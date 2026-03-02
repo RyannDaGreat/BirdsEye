@@ -153,17 +153,5 @@
   .search-wrap .search-x {
     position: absolute; right: var(--space-md); top: 50%; transform: translateY(-50%);
   }
-  .mode-tabs {
-    display: flex; gap: var(--space-xs); background: var(--bg);
-    border-radius: var(--radius); padding: var(--space-xs);
-    height: var(--control-height);
-  }
-  .mode-tab {
-    padding: 0 var(--space-lg); border: none; background: none; color: var(--text-dim);
-    font-family: var(--font); font-size: var(--font-size-control); cursor: pointer;
-    border-radius: calc(var(--radius) - var(--space-xs)); transition: all 0.15s; white-space: nowrap;
-    line-height: calc(var(--control-height) - var(--space-xs) * 2);
-  }
-  .mode-tab.active { background: var(--accent); color: #fff; }
-  .mode-tab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+  /* mode-tabs and mode-tab styles are in shared app.css */
 </style>
