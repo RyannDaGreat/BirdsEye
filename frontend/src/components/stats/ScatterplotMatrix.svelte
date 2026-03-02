@@ -175,10 +175,8 @@
     const col = Math.floor((mx - PAD_LEFT) / CELL);
     const row = Math.floor((my - PAD_TOP) / CELL);
     if (row >= 0 && row < n && col >= 0 && col < n) {
-      if (hoverRow !== row || hoverCol !== col) {
-        hoverRow = row; hoverCol = col;
-        compositeFrame();
-      }
+      hoverRow = row; hoverCol = col;
+      compositeFrame();
       if (row === col) {
         hoverInfo = `${fieldLabel(fields[row].key)}: ${fields[row].values.length} samples`;
       } else {
