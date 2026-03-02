@@ -9,8 +9,21 @@ PORT=8899
 SKIP_AGGREGATE=false
 for arg in "$@"; do
     case "$arg" in
+        -h|--help)
+            echo "Usage: bash run.sh [PORT] [--skip-aggregate]"
+            echo ""
+            echo "  PORT              Server port (default: 8899)"
+            echo "  --skip-aggregate  Skip cache aggregation for fast startup."
+            echo "                    Errors if any dataset has no cached data."
+            exit 0
+            ;;
         --skip-aggregate) SKIP_AGGREGATE=true ;;
-        *)                PORT="$arg" ;;
+        [0-9]*)           PORT="$arg" ;;
+        *)
+            echo "ERROR: Unknown argument: $arg"
+            echo "Try: bash run.sh --help"
+            exit 1
+            ;;
     esac
 done
 

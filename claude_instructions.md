@@ -1086,6 +1086,10 @@ The biggest win is CLIP going from 15min to 30s per batch. The second win is ing
 - **BATCH_SIZE > samples/GPU = no progress**: With BATCH_SIZE=256 and 63 samples per GPU, tqdm shows 0% → 100% with nothing in between. Use PREFETCH_CHUNK for granular progress.
 - **`/api/status` must read disk**: In-memory counts never change after server boot. Status endpoint reads `cache_manifest.json` fresh from disk each poll.
 - **Auto-aggregation must be batch-scoped**: Full filesystem scan of samples/ after every 500-sample batch is O(minutes). Pass sample list directly → O(seconds).
+- **CSS mask-image needs real dimensions**: Setting `height: 0` with `overflow: visible` makes the element visually invisible because CSS mask-image requires actual element area to render. Solution: use a small placeholder wrapper for layout, absolute-position the full-size masked element on top.
+- **Ghost preview sections**: Never declare a preview section for an artifact that isn't actually generated. The raft_flow processor declared `flow_sprite.jpg` but only produces `flow_stats.json` (numeric data). The preview section referenced a non-existent file, causing 404 errors in the UI.
+- **JS pure functions must follow the same standards as Python**: All JS utility functions must be labeled as pure, have JSDoc with examples, and live in shared modules (`format.js`, `fields.js`) — not inline in Svelte components.
+- **Video sync needs a reentrant guard**: When syncing play/pause/seek across multiple `<video>` elements, setting one video's `currentTime` fires a `seeked` event on it, which would trigger the sync handler again → infinite loop. A `syncing` boolean flag prevents reentrance.
 
 ## TODO
 
@@ -1983,64 +1987,119 @@ Source: another dump folder (likely `/root/CleanCode/Dumps/OpenHumanVid/` or sim
 4. Collision check at boot ensures no name conflicts
 5. Full testing alongside Pexels and Web360
 
-### Upcoming: Modular Preview Pane
+### Modular Preview Pane (Implemented)
 
-The detail/preview pane should become a stack of collapsible sections, where each
-section is contributed by a processor, dataset, or built-in feature. This enables
-datasets like OpenHumanVid to show pose skeletons, depth maps, etc. alongside the
-standard video player and thumbnails.
+The detail/preview pane is a stack of collapsible sections where each section is
+contributed by a processor or dataset. This enables datasets to show custom
+visualizations (pose skeletons, depth maps, compression ladders, etc.).
 
 **Architecture: Plugin-declared preview sections**
 
-Preview sections are NOT hardcoded to specific processors or artifacts. Each plugin
-(processor or dataset) can declare zero or more preview sections. The preview pane
-renders them as a stack of collapsible accordion items.
-
-A preview section is generic: it has a **type** (from a library of renderers) and
-**arguments** (which artifacts/fields to use). The renderer library is a set of
-Svelte components that know how to display certain patterns:
+Each plugin declares `preview_sections` — a list of dicts with `type`, `label`,
+`priority`, `description`, and `args`. The frontend renders them as collapsible
+accordion items via generic renderer components.
 
 ```
 frontend/src/components/preview/
-  PreviewSection.svelte       — collapsible accordion wrapper
+  PreviewSection.svelte       — collapsible accordion wrapper (has tooltip from description)
+  SectionRenderer.svelte      — maps type strings to renderer components
   SideBySideImages.svelte     — N images side by side with labels
-  SideBySideVideos.svelte     — N videos side by side with labels
+  SideBySideVideos.svelte     — N videos with wrapping, sync, file sizes
   SingleImage.svelte          — one image, full width
   SingleVideo.svelte          — one video with controls
-  FieldBarsSection.svelte     — a group of field bars
 ```
 
-These renderers are generic — not tied to any processor. A processor or dataset
-declares which renderer to use and what arguments to pass. For example:
-
+**Preview section declaration format:**
 ```python
-# In compress processor:
 preview_sections = [
-    {"type": "side_by_side_videos", "label": "Compression Ladder",
-     "args": {"files": ["compress_144p.mp4", "compress_480p.mp4", "compress_1080p.mp4"]}},
-]
-
-# In ingest processor:
-preview_sections = [
-    {"type": "side_by_side_images", "label": "Frames",
-     "args": {"files": ["thumb_first.jpg", "thumb_middle.jpg", "thumb_last.jpg"],
-              "labels": ["First", "Middle", "Last"]}},
+    {"type": "side_by_side_videos",
+     "label": "Compression Ladder",
+     "priority": 50,
+     "description": "H.264 veryfast CRF 28 proxies at multiple resolutions...",
+     "args": {
+         "files": ["compress_1080p.mp4", "compress_720p.mp4", ...],
+         "labels": ["1080p", "720p", ...],
+         "max_per_row": 3,        # wraps to multiple rows
+         "sync": True,            # play/pause/seek syncs across all videos
+         "show_filesize": True,   # shows file size next to each label
+     }},
 ]
 ```
 
-The frontend fetches preview section declarations from the API and renders them.
-All sections are collapsible (accordion style). Priority ordering determines default
-order. Built-in sections (video player, fields, caption) come first.
+**Requirements and design decisions:**
+- **Tooltips on section headers:** Each preview section header shows a native HTML
+  tooltip (`title` attribute) with the `description` from the plugin. This lets users
+  understand what they're looking at. Descriptions should mention artifact filenames.
+- **Compression ladder shows ALL resolutions** (1080p, 720p, 480p, 360p, 240p, 144p),
+  not just the first 3. Files that don't exist on disk are automatically hidden (e.g.,
+  if a video was too small for 1080p, that entry won't appear).
+- **Max 3 per row** with CSS flex wrapping — extra files go to the next row.
+- **File sizes** shown next to labels in 50% opacity text (e.g., "1080p 2.3MB").
+  Uses `humanFilesize()` in `format.js` matching rp's `human_readable_file_size` format
+  (1024-based, integer when exact, 1 decimal otherwise).
+- **Video sync:** When one video plays/pauses/seeks, all sibling videos follow.
+  Prevents confusing out-of-sync playback in compression ladder comparisons.
+  Implemented via shared `syncing` flag to prevent infinite event loops.
+- **Only show existing files:** The component fetches file sizes from
+  `/api/file_sizes/<dataset>/<video_name>` and only renders files that exist on disk.
+  Ghost/missing artifacts are silently omitted.
+- **No ghost preview sections:** A preview section must only reference artifacts that
+  the processor actually generates. If a processor doesn't produce a visualization
+  artifact, it must not declare a preview section for it. (Caught: raft_flow declared
+  `flow_sprite.jpg` but never generates it — removed.)
 
 **Key principle:** The preview pane has NO knowledge of specific processors or
-artifacts. It just knows how to render generic section types. Processors and datasets
-declare what they want shown. Adding a new visualization = drop a Svelte renderer
-file, map a type string to it, and have a plugin declare a section with that type.
+artifacts. It renders generic section types. Adding a new visualization = drop a Svelte
+renderer file, map a type string to it, have a plugin declare a section with that type.
 
-**Not per-artifact.** Preview sections are not declared per artifact. They are declared
-per plugin, and a plugin combines its artifacts/fields into sections however it sees fit.
-Given a sample directory, the plugin says "here are my preview sections and what goes in
-them." This is more flexible than per-artifact rendering.
+### Bird's Eye Logo
+
+Custom SVG logo (`frontend/src/assets/birdseye.svg`) displayed in the header via CSS
+mask-image for accent color inheritance.
+
+**CSS approach:** A wrapper span (`.logo-wrap`) at text line height (1.2em × 1.2em)
+provides the horizontal space in the flex layout. Inside it, the actual `.logo` span
+is `position: absolute` at 3.25em × 3.25em (2.5× the text size), centered on the
+wrapper. This makes the logo float vertically (doesn't push the header taller) while
+still taking horizontal space (doesn't get clipped off-screen).
+
+**Mistakes and corrections:**
+1. First attempt: logo was `display: inline-block` at 3.25em height — pushed the
+   entire header taller, creating whitespace above the search bar.
+2. Second attempt: `position: absolute` with `right: 100%` — logo floated off the
+   left edge of the screen, only half visible.
+3. Third attempt: `height: 0` with `overflow: visible` — logo became invisible
+   because CSS mask-image requires actual element dimensions to render.
+4. Final solution: placeholder wrapper at text size + absolute-positioned logo at
+   full size, centered on wrapper. Correct horizontal push, no vertical push, fully
+   visible.
+
+### Help Panel
+
+The `?` button in the header toggles a help/info panel (`SyntaxHelp.svelte`). Its
+tooltip reads "Help & dataset info" — it shows more than just search syntax:
+- Search syntax reference (FZF, semantic, hull modes)
+- Per-dataset help_text (descriptions from dataset plugins)
+- General status and usage information
+
+### Field Tooltip Source Attribution
+
+All field tooltips (in FieldBar, detail panel, stats panel) show the origin plugin
+in italic 50% opacity at the bottom of the tooltip. Format:
+`Source: Ingest` or `Source: OpenHumanVid (HQ)`.
+
+**Rationale:** When inspecting data in the frontend, the user needs to quickly
+determine which plugin produced a given field — for debugging, understanding, and
+tracing data provenance from the UI back to the processing pipeline. The source
+annotation makes this immediately visible without needing to check code.
+
+Implementation:
+- Server tags each field with `"source"` in `/api/field_info` — processor fields
+  get the processor's `human_name`, dataset fields get the dataset's `human_name`,
+  server-computed fields (score) get "Server".
+- `fieldTooltip(key)` in `fields.js` builds the HTML:
+  `<strong>Label</strong><br/>Description<br/><span style="opacity:0.5;font-style:italic">Source: Name</span>`
+- Used by DetailPanel, StatsPanel (replaces inline tooltip construction).
 
 ### Upcoming: Download Selected Samples
 

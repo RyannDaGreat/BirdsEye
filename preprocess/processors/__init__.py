@@ -143,6 +143,7 @@ def resolve_dependencies(enabled_names, all_processors):
 def collect_field_info(processors):
     """
     Collect all field metadata from all processors into one dict.
+    Tags each field with 'source' = processor human_name.
 
     Pure function.
 
@@ -151,7 +152,8 @@ def collect_field_info(processors):
     """
     fields = {}
     for proc in processors.values():
-        fields.update(proc.fields)
+        for key, info in proc.fields.items():
+            fields[key] = {**info, "source": proc.human_name}
     return fields
 
 

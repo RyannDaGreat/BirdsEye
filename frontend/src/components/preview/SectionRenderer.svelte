@@ -23,7 +23,8 @@
 </script>
 
 {#if component}
-  <PreviewSection label={section.label} defaultOpen={section.priority <= 30}>
+  <PreviewSection label={section.label} defaultOpen={section.priority <= 30}
+                  tooltip={section.description || ''}>
     <svelte:component this={component} {videoName} args={section.args || {}} />
   </PreviewSection>
 {/if}

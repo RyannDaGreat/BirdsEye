@@ -37,6 +37,39 @@ export function fieldDescription(key) {
 }
 
 /**
+ * Get the source plugin name for a field key (e.g., "Ingest", "Pexels").
+ * Pure function.
+ */
+export function fieldSource(key) {
+  const info = get(fieldInfo);
+  if (info.fields && info.fields[key] && info.fields[key].source) {
+    return info.fields[key].source;
+  }
+  return '';
+}
+
+/**
+ * Build the HTML tooltip string for a field key.
+ * Shows label (bold), description, and source plugin (italic, 50% opacity).
+ * Returns empty string if no description exists.
+ * Pure function.
+ *
+ * @param {string} key - The field key (e.g., "duration", "flow_mean_magnitude")
+ * @returns {string} HTML string for tooltip, or '' if no description
+ *
+ * >>> fieldTooltip('nonexistent_field_xyz')  // returns ''
+ */
+export function fieldTooltip(key) {
+  const desc = fieldDescription(key);
+  if (!desc) return '';
+  const source = fieldSource(key);
+  const sourceHtml = source
+    ? `<br/><span style="opacity:0.5;font-style:italic">Source: ${source}</span>`
+    : '';
+  return `<strong>${fieldLabel(key)}</strong><br/>${desc}${sourceHtml}`;
+}
+
+/**
  * Get the dtype ("int" or "float") for a field from server-provided field_info.
  * Pure function.
  */

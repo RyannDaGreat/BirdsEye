@@ -79,7 +79,7 @@
 </script>
 
 <div class="header">
-  <h1><span class="logo" title="Bird's Eye"></span> Bird's Eye</h1>
+  <h1><span class="logo-wrap"><span class="logo" title="Bird's Eye"></span></span> Bird's Eye</h1>
   <ReloadIndicator />
   <select class="control" bind:value={$currentDataset} on:change={() => dispatch('datasetchange')} title="Select dataset to search">
     {#each Object.entries($datasets) as [name, info]}
@@ -120,7 +120,7 @@
   </button>
   <button class="control" class:active-toggle={$showFilters} on:click={() => $showFilters = !$showFilters} title="Toggle filter panel with histogram range selectors"><iconify-icon icon="mdi:filter-variant" inline></iconify-icon> Filters</button>
   <button class="control" class:active-toggle={$showStats} on:click={() => $showStats = !$showStats} title="Toggle aggregate statistics for current results and selection"><iconify-icon icon="mdi:chart-bar" inline></iconify-icon> Stats</button>
-  <button class="control" class:active-toggle={$showHelp} on:click={() => $showHelp = !$showHelp} title="Toggle search syntax help"><iconify-icon icon="mdi:help-circle-outline" inline></iconify-icon></button>
+  <button class="control" class:active-toggle={$showHelp} on:click={() => $showHelp = !$showHelp} title="Help &amp; dataset info"><iconify-icon icon="mdi:help-circle-outline" inline></iconify-icon></button>
 </div>
 
 <style>
@@ -134,16 +134,19 @@
     flex-shrink: 0;
   }
   h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: var(--space-sm); }
+  .logo-wrap {
+    display: inline-block; width: 1.2em; height: 1.2em; position: relative; flex-shrink: 0;
+  }
   .logo {
-    display: inline-block; width: 3.25em; height: 0;
-    overflow: visible;
+    position: absolute; width: 3.25em; height: 3.25em;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
     background-color: currentColor;
     -webkit-mask-image: url('../assets/birdseye.svg');
     mask-image: url('../assets/birdseye.svg');
-    -webkit-mask-size: 3.25em 3.25em; mask-size: 3.25em 3.25em;
+    -webkit-mask-size: contain; mask-size: contain;
     -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
     -webkit-mask-position: center; mask-position: center;
-    transform: translateY(-0.1em);
+    pointer-events: none;
   }
   .search-container { flex: 1; display: flex; gap: var(--space-md); align-items: center; }
   .search-wrap { flex: 1; position: relative; display: flex; }

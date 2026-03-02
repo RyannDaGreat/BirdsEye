@@ -479,6 +479,19 @@ def create_app(port=8899):
             return jsonify({"error": f"File not found: {filename}"}), 404
         return send_from_directory(sd, filename)
 
+    @app.route("/api/file_sizes/<dataset>/<video_name>")
+    def file_sizes(dataset, video_name):
+        """Return {filename: size_bytes} for all files in a sample directory."""
+        sd = resolve_sample_path(datasets_dir, dataset, video_name)
+        if not os.path.isdir(sd):
+            return jsonify({}), 200
+        sizes = {}
+        for f in os.listdir(sd):
+            fp = os.path.join(sd, f)
+            if os.path.isfile(fp):
+                sizes[f] = os.path.getsize(fp)
+        return jsonify(sizes)
+
     @app.route("/api/video/<dataset>/<video_name>")
     def serve_video(dataset, video_name):
         """
@@ -577,13 +590,14 @@ def create_app(port=8899):
 
         # Server-only fields (not from any processor)
         all_fields = {
-            "score": {"label": "Score", "description": "Cosine similarity between the text embedding of the search query and the image embedding of the video's middle frame. Text encoded at query time, image embeddings pre-computed. Higher = more visually similar to query text.", "dtype": "float"},
+            "score": {"label": "Score", "description": "Cosine similarity between the text embedding of the search query and the image embedding of the video's middle frame. Text encoded at query time, image embeddings pre-computed. Higher = more visually similar to query text.", "dtype": "float", "source": "Server"},
         }
         all_fields.update(plugin_fields)
 
-        # Add dataset-native fields
+        # Add dataset-native fields (tagged with dataset human_name)
         for ds_mod in dataset_modules.values():
-            all_fields.update(ds_mod.fields)
+            for key, info in ds_mod.fields.items():
+                all_fields[key] = {**info, "source": ds_mod.human_name}
 
         return jsonify({
             "fields": all_fields,

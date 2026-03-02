@@ -368,9 +368,11 @@ class IngestProcessor(Processor):
 
     preview_sections = [
         {"type": "side_by_side_images", "label": "Frames", "priority": 20,
+         "description": "First, middle, and last frames extracted at 512px height (JPEG). Artifacts: thumb_first.jpg, thumb_middle.jpg, thumb_last.jpg.",
          "args": {"files": ["thumb_first.jpg", "thumb_middle.jpg", "thumb_last.jpg"],
                   "labels": ["First", "Middle", "Last"]}},
         {"type": "single_image", "label": "Sprite Sheet", "priority": 60,
+         "description": "5x5 grid of 25 evenly-spaced frames from the video. Used for hover scrubbing in the grid view. Artifact: sprite.jpg.",
          "args": {"file": "sprite.jpg"}},
     ]
 

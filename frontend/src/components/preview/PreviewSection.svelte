@@ -5,12 +5,13 @@
 <script>
   export let label = '';
   export let defaultOpen = true;
+  export let tooltip = '';
 
   let open = defaultOpen;
 </script>
 
 <div class="preview-section">
-  <button class="section-header" on:click={() => open = !open}>
+  <button class="section-header" on:click={() => open = !open} title={tooltip}>
     <iconify-icon icon={open ? 'mdi:chevron-down' : 'mdi:chevron-right'} inline></iconify-icon>
     {label}
   </button>

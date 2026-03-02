@@ -1,7 +1,7 @@
 <script>
   import { detailData, currentDataset, detailWidth, searchQuery, favorites } from '../lib/stores.js';
   import { formatNumber, collectVideoFields, highlightTerms } from '../lib/format.js';
-  import { fieldLabel, fieldDescription } from '../lib/fields.js';
+  import { fieldLabel, fieldTooltip } from '../lib/fields.js';
   import FieldBar from './widgets/FieldBar.svelte';
   import PreviewSection from './preview/PreviewSection.svelte';
   import SectionRenderer from './preview/SectionRenderer.svelte';
@@ -89,11 +89,10 @@
 
     <div class="metadata">
       {#each allFields as { key, value }}
-        {@const desc = fieldDescription(key)}
         <FieldBar
           label={fieldLabel(key)}
           value={formatNumber(value)}
-          tooltip={desc ? '<strong>' + fieldLabel(key) + '</strong><br/>' + desc : ''}
+          tooltip={fieldTooltip(key)}
         />
       {/each}
     </div>

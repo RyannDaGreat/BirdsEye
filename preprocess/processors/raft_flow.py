@@ -186,10 +186,10 @@ class RaftFlowProcessor(Processor):
         {"type": "json_dict", "source": "flow_stats.json", "target": "video_stats.json"},
     ]
 
-    preview_sections = [
-        {"type": "single_image", "label": "Optical Flow", "priority": 55,
-         "args": {"file": "flow_sprite.jpg"}},
-    ]
+    # No preview_sections — raft_flow computes numeric stats only (flow_stats.json).
+    # It does NOT generate any visual artifacts. A flow visualization sprite could be
+    # added in the future by colorizing the flow vectors, but that code doesn't exist yet.
+    preview_sections = []
 
     def process(self, entries, dataset_dir, workers=32):
         """Run RAFT as subprocess for CUDA isolation. Self-calls gpu_worker via Fire."""

@@ -186,8 +186,11 @@ class CompressProcessor(Processor):
 
     preview_sections = [
         {"type": "side_by_side_videos", "label": "Compression Ladder", "priority": 50,
-         "args": {"files": ["compress_1080p.mp4", "compress_720p.mp4", "compress_480p.mp4"],
-                  "labels": ["1080p", "720p", "480p"]}},
+         "description": "H.264 veryfast CRF 28 proxies at multiple resolutions. Resolution = smaller dimension (height for landscape, width for portrait). Videos below a target resolution are not upscaled.",
+         "args": {"files": ["compress_1080p.mp4", "compress_720p.mp4", "compress_480p.mp4",
+                            "compress_360p.mp4", "compress_240p.mp4", "compress_144p.mp4"],
+                  "labels": ["1080p", "720p", "480p", "360p", "240p", "144p"],
+                  "max_per_row": 3, "sync": True, "show_filesize": True}},
     ]
 
     def process(self, entries, dataset_dir, workers=DEFAULT_WORKERS):

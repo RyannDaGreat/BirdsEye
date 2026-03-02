@@ -98,6 +98,31 @@ export function highlightTerms(text, query) {
 }
 
 /**
+ * Format a file size in bytes to human-readable string (KB, MB, GB, etc.).
+ * Uses 1024-based units to match rp.human_readable_file_size behavior.
+ * Pure function.
+ *
+ * Examples:
+ *   humanFilesize(0)         → '0B'
+ *   humanFilesize(100)       → '100B'
+ *   humanFilesize(1024)      → '1KB'
+ *   humanFilesize(1025)      → '1.0KB'
+ *   humanFilesize(10000000)  → '9.5MB'
+ *   humanFilesize(1073741824) → '1GB'
+ */
+export function humanFilesize(bytes) {
+  if (bytes === 0) return '0B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let val = bytes;
+  for (const unit of units) {
+    if (Math.abs(val) < 1024 || unit === 'PB') {
+      return val === Math.floor(val) ? `${val}${unit}` : `${val.toFixed(1)}${unit}`;
+    }
+    val /= 1024;
+  }
+}
+
+/**
  * Collect all numeric fields from a video_info response into [{key, value}].
  * Iterates metadata + stats — no hardcoded field names.
  * Pure function.
