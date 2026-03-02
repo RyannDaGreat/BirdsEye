@@ -46,7 +46,8 @@
   .field-label { color: var(--text-dim); }
   .field-value { color: var(--accent); }
   .has-desc { cursor: help; }
-  .toggleable { cursor: pointer; transition: border-color 0.15s; }
-  .toggleable:hover { border-color: var(--text-dim); }
+  .toggleable { cursor: pointer; transition: border-color 0.15s, opacity 0.15s; }
+  .toggleable:not(.active) { opacity: 0.3; }
+  .toggleable:not(.active):hover { opacity: 0.7; }
   .active { border-color: var(--accent); }
 </style>

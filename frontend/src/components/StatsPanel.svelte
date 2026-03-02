@@ -20,15 +20,16 @@
   ];
 
   // --- Data source computation ---
-  $: sourceAItems = getSourceItems($statsSourceA);
-  $: sourceBItems = $statsSourceB !== 'none' ? getSourceItems($statsSourceB) : null;
-
-  function getSourceItems(source) {
-    if (source === 'results') return $currentResults;
-    if (source === 'selection') return $currentResults.filter(r => $selectedVideos.has(r.video_name));
-    if (source === 'dataset') return $currentResults; // TODO: fetch full dataset stats
+  // Pass stores as arguments so Svelte tracks them as reactive dependencies
+  function getSourceItems(source, results, selected) {
+    if (source === 'results') return results;
+    if (source === 'selection') return results.filter(r => selected.has(r.video_name));
+    if (source === 'dataset') return results; // TODO: fetch full dataset stats
     return [];
   }
+
+  $: sourceAItems = getSourceItems($statsSourceA, $currentResults, $selectedVideos);
+  $: sourceBItems = $statsSourceB !== 'none' ? getSourceItems($statsSourceB, $currentResults, $selectedVideos) : null;
 
   // --- Summary view data ---
   $: fieldsA = $showStats ? collectNumericFields(sourceAItems) : {};

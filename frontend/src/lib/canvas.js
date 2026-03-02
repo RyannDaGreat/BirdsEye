@@ -5,19 +5,40 @@
  */
 
 /**
+ * Set up a canvas for high-DPI rendering. Returns the 2D context scaled correctly.
+ * Call this before drawing — sets canvas pixel dimensions to match CSS size × devicePixelRatio.
+ * Pure function (mutates only the provided canvas).
+ *
+ * @param {HTMLCanvasElement} canvas
+ * @returns {{ctx: CanvasRenderingContext2D, w: number, h: number}} logical width/height
+ */
+export function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.floor(rect.width);
+  const h = Math.floor(rect.height);
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w, h };
+}
+
+/**
  * Draw a scatter plot on a canvas context.
- * Normalizes x/y values to fill the canvas area.
+ * Normalizes x/y values to fill the canvas area with padding.
  * Pure function (mutates only the provided canvas context).
  *
  * @param {CanvasRenderingContext2D} ctx
  * @param {number[]} xValues
  * @param {number[]} yValues
- * @param {number} width - canvas width in pixels
- * @param {number} height - canvas height in pixels
+ * @param {number} width - logical canvas width
+ * @param {number} height - logical canvas height
  * @param {string} color - CSS color for dots
  * @param {number} opacity - dot opacity (0-1)
+ * @param {number} dotRadius - radius of each dot in logical pixels
  */
-export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9eff', opacity = 0.3) {
+export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9eff', opacity = 0.3, dotRadius = 2) {
   if (xValues.length === 0 || yValues.length === 0) return;
   const n = Math.min(xValues.length, yValues.length);
   const xMin = Math.min(...xValues);
@@ -26,7 +47,7 @@ export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9e
   const yMax = Math.max(...yValues);
   const xRange = xMax - xMin || 1;
   const yRange = yMax - yMin || 1;
-  const pad = 4;
+  const pad = 6;
   const drawW = width - pad * 2;
   const drawH = height - pad * 2;
 
@@ -36,7 +57,7 @@ export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9e
     const px = pad + ((xValues[i] - xMin) / xRange) * drawW;
     const py = height - pad - ((yValues[i] - yMin) / yRange) * drawH;
     ctx.beginPath();
-    ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+    ctx.arc(px, py, dotRadius, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -50,8 +71,8 @@ export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9e
  * @param {CanvasRenderingContext2D} ctx
  * @param {number[]} values
  * @param {number} bins - number of histogram bins
- * @param {number} width - canvas width in pixels
- * @param {number} height - canvas height in pixels
+ * @param {number} width - logical canvas width
+ * @param {number} height - logical canvas height
  * @param {string} color - CSS color for bars
  */
 export function drawHistogram(ctx, values, bins, width, height, color = '#4a9eff') {

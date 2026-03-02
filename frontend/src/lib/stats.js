@@ -86,6 +86,32 @@ export function dequantize(quantized, min, max) {
 }
 
 /**
+ * Compute Pearson correlation coefficient between two numeric arrays.
+ * Returns r in [-1, 1]. Returns 0 if inputs are empty or constant.
+ * Pure function.
+ *
+ * @param {number[]} xs
+ * @param {number[]} ys
+ * @returns {number}
+ */
+export function pearsonCorrelation(xs, ys) {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 2) return 0;
+  let sumX = 0, sumY = 0;
+  for (let i = 0; i < n; i++) { sumX += xs[i]; sumY += ys[i]; }
+  const meanX = sumX / n, meanY = sumY / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - meanX, dy = ys[i] - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den === 0 ? 0 : num / den;
+}
+
+/**
  * Summarize an array of numbers: {mean, min, max, std}.
  * Pure function.
  */
