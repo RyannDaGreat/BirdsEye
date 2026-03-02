@@ -28,10 +28,11 @@
 
   const CELL = 80;
   const PAD_LEFT = 150;
-  const PAD_TOP = 60;
+  const PAD_RIGHT = 150;
+  const PAD_TOP = 150;
 
   $: n = fields.length;
-  $: totalW = PAD_LEFT + n * CELL;
+  $: totalW = PAD_LEFT + n * CELL + PAD_RIGHT;
   $: totalH = PAD_TOP + n * CELL;
 
   function maybeLog(values) {
