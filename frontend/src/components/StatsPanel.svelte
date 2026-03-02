@@ -85,13 +85,12 @@
 
   function onMouseMove(e) {
     if (vDragging) {
-      const maxH = window.innerHeight * 0.6;
-      $statsHeight = Math.max(100, Math.min(maxH, vStartH + e.clientY - vStartY));
+      $statsHeight = Math.max(40, vStartH + e.clientY - vStartY);
     }
     if (hDrag === 1) {
-      col1W = Math.max(100, Math.min(400, hStartW + e.clientX - hStartX));
+      col1W = Math.max(40, hStartW + e.clientX - hStartX);
     } else if (hDrag === 2) {
-      col3W = Math.max(100, Math.min(600, hStartW - (e.clientX - hStartX)));
+      col3W = Math.max(40, hStartW - (e.clientX - hStartX));
     }
   }
 

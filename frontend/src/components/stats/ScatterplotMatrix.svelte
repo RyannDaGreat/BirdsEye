@@ -204,11 +204,9 @@
 
 <div class="splom-outer" bind:this={outerEl}>
   {#if n > 0}
-    <div class="splom-wrap">
-      <div class="splom-scaled" style="transform: scale({scale}); width: {totalW}px; height: {totalH}px;">
-        <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <canvas bind:this={canvas} on:mousemove={onCanvasMove} on:mouseleave={onCanvasLeave}></canvas>
-      </div>
+    <div class="splom-scaled" style="transform: scale({scale}); width: {totalW}px; height: {totalH}px;">
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <canvas bind:this={canvas} on:mousemove={onCanvasMove} on:mouseleave={onCanvasLeave}></canvas>
     </div>
     <button class="log-toggle" class:active={useLog} on:click={() => { useLog = !useLog; }}
             title={useLog ? 'Switch to linear scale' : 'Switch to log₁₀ scale'}>
@@ -224,8 +222,7 @@
 
 <style>
   .splom-outer { position: relative; width: 100%; height: 100%; overflow: hidden; }
-  .splom-wrap { width: 100%; height: 100%; display: flex; justify-content: center; }
-  .splom-scaled { transform-origin: top left; flex-shrink: 0; }
+  .splom-scaled { transform-origin: top left; }
   canvas { display: block; }
   .log-toggle {
     position: absolute; top: var(--space-xs); left: var(--space-xs); z-index: 2;
