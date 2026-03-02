@@ -270,11 +270,10 @@
     display: flex; flex-direction: column; gap: var(--space-xs);
     padding-top: var(--space-xs);
   }
-  /* Field bars: width of the longest bar, values right-aligned, softer active border */
+  /* Field bars: full width, values right-aligned, softer active border */
   .field-list :global(.field-bar) { display: flex; width: 100%; }
   .field-list :global(.field-value) { margin-left: auto; }
   .field-list :global(.field-bar.active) { border-color: rgba(74, 158, 255, 0.4); }
-  .field-list { width: max-content; max-width: 100%; }
   .splom-col {
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
