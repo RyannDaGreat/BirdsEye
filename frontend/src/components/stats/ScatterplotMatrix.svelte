@@ -27,7 +27,7 @@
   let dpr = 1;
 
   const CELL = 80;
-  const PAD_LEFT = 70;
+  const PAD_LEFT = 100;
   const PAD_TOP = 60;
 
   $: n = fields.length;
