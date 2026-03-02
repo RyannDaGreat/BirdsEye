@@ -354,8 +354,8 @@ class IngestProcessor(Processor):
     ]
 
     fields = {
-        "width": {"label": "Resolution (w)", "description": "Video width in pixels.", "dtype": "int"},
-        "height": {"label": "Resolution (h)", "description": "Video height in pixels.", "dtype": "int"},
+        "width": {"label": "Width", "description": "Video width in pixels.", "dtype": "int"},
+        "height": {"label": "Height", "description": "Video height in pixels.", "dtype": "int"},
         "fps": {"label": "FPS", "description": "Average frames per second.", "dtype": "float"},
         "num_frames": {"label": "Frame Count", "description": "Total video frames.", "dtype": "int"},
         "duration": {"label": "Duration (s)", "description": "Video duration in seconds = num_frames / fps.", "dtype": "float"},
