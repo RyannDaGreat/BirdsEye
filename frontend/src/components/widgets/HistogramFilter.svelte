@@ -155,7 +155,6 @@
   .hf.inactive { opacity: 0.3; }
   .hf.inactive:hover { opacity: 0.7; }
   .hf.highlighted { opacity: 1 !important; }
-  .hf.highlighted .hf-chart { outline: 1px solid var(--accent); }
   .hf-row {
     display: flex; align-items: center; gap: var(--space-sm);
     margin-bottom: var(--space-xs);
