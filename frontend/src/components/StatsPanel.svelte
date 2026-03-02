@@ -197,13 +197,12 @@
   .stats-body {
     flex: 1; min-height: 0;
     display: flex;
-    padding: var(--space-sm) var(--space-md) var(--space-sm);
   }
   .col { min-height: 0; overflow: hidden; }
   .analysis-col {
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
-    padding: 0 var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
   }
   .col-fixed {
     flex-shrink: 0;
@@ -243,12 +242,12 @@
   .splom-col {
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
-    padding: 0 var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
   }
   .words-col {
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
-    padding: 0 var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
   }
   .split-handle {
     width: var(--resize-handle-size); flex-shrink: 0;

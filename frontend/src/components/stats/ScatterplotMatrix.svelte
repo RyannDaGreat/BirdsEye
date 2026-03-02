@@ -165,9 +165,13 @@
 
   $: scale = getScale();
   $: if (n >= 0 && outerEl) scale = getScale();
+  $: offsetY = outerEl ? Math.max(0, (outerEl.getBoundingClientRect().height - totalH * scale) / 2) : 0;
 
   onMount(() => {
-    observer = new ResizeObserver(() => { scale = getScale(); });
+    observer = new ResizeObserver(() => {
+      scale = getScale();
+      offsetY = outerEl ? Math.max(0, (outerEl.getBoundingClientRect().height - totalH * scale) / 2) : 0;
+    });
     if (outerEl) observer.observe(outerEl);
   });
   onDestroy(() => { if (observer) observer.disconnect(); });
@@ -205,7 +209,7 @@
 
 <div class="splom-outer" bind:this={outerEl}>
   {#if n > 0}
-    <div class="splom-scaled" style="transform: scale({scale}); width: {totalW}px; height: {totalH}px;">
+    <div class="splom-scaled" style="transform: translate(0, {offsetY}px) scale({scale}); width: {totalW}px; height: {totalH}px;">
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <canvas bind:this={canvas} on:mousemove={onCanvasMove} on:mouseleave={onCanvasLeave}></canvas>
     </div>
