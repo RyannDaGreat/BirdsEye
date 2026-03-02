@@ -39,7 +39,7 @@ export function setupCanvas(canvas) {
  * @param {number} opacity - dot opacity (0-1)
  * @param {number} dotRadius - radius of each dot in logical pixels
  */
-export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9eff', opacity = 0.3, dotRadius = 1.5) {
+export function drawScatter(ctx, xValues, yValues, width, height, color = '#4a9eff', opacity = 0.3, dotRadius = 0.75) {
   if (xValues.length === 0 || yValues.length === 0) return;
   const n = Math.min(xValues.length, yValues.length);
   const xMin = Math.min(...xValues);

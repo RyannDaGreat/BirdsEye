@@ -1,9 +1,8 @@
 <!--
   Scatterplot Matrix (SPLOM): N×N grid of pairwise scatter plots.
-  Diagonal: histogram. Off-diagonal: scatter. Always square cells.
-  Cell size computed from container dimensions. Single-pixel grid lines.
-  45° diagonal column labels. Hover shows Pearson correlation.
-  Optional log-log scale toggle.
+  Rendered at ideal size, then CSS-scaled to fit the container.
+  Single-pixel grid lines via background color + gap.
+  45° diagonal column labels. Hover shows Pearson correlation + crosshair.
 -->
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
@@ -16,7 +15,7 @@
 
   let canvases = {};
   let outerEl;
-  let cellSize = 0;
+  let scale = 1;
   let hoverInfo = '';
   let hoverX = 0;
   let hoverY = 0;
@@ -25,10 +24,13 @@
   let observer;
   let useLog = true;
 
-  const LABEL_W = 60;
-  const HEADER_H = 60;
+  const CELL = 80;  // ideal cell size in px
+  const LABEL_W = 64;
+  const HEADER_H = 56;
 
   $: n = fields.length;
+  $: idealW = LABEL_W + n * CELL + Math.max(0, n - 1);
+  $: idealH = HEADER_H + n * CELL + Math.max(0, n - 1);
 
   function cellKey(r, c) { return `${r}_${c}`; }
 
@@ -37,22 +39,18 @@
     return values.map(v => v > 0 ? Math.log10(v) : 0);
   }
 
-  function computeLayout() {
-    if (!outerEl || n === 0) { cellSize = 0; return; }
+  function computeScale() {
+    if (!outerEl || n === 0) { scale = 1; return; }
     const rect = outerEl.getBoundingClientRect();
-    const availW = rect.width - LABEL_W;
-    const availH = rect.height - HEADER_H;
-    // Cell size so that N cells + (N-1) single-pixel borders fit
-    cellSize = Math.max(20, Math.floor(Math.min(
-      (availW - (n - 1)) / n,
-      (availH - (n - 1)) / n
-    )));
+    const sx = rect.width / idealW;
+    const sy = rect.height / idealH;
+    scale = Math.min(1, sx, sy);
   }
 
   async function renderAll() {
-    computeLayout();
+    computeScale();
     await tick();
-    if (cellSize <= 0 || n === 0) return;
+    if (n === 0) return;
 
     for (let row = 0; row < n; row++) {
       for (let col = 0; col < n; col++) {
@@ -82,16 +80,15 @@
   $: if (useLog !== undefined && n > 0) renderAll();
 
   onMount(() => {
-    observer = new ResizeObserver(() => renderAll());
+    observer = new ResizeObserver(() => { computeScale(); });
     if (outerEl) observer.observe(outerEl);
   });
   onDestroy(() => { if (observer) observer.disconnect(); });
 
-  // Re-attach observer when outerEl changes (e.g. empty → grid transition)
   $: if (outerEl && observer) {
     observer.disconnect();
     observer.observe(outerEl);
-    renderAll();
+    computeScale();
   }
 
   function onCellHover(e, row, col) {
@@ -109,50 +106,47 @@
   }
 
   function onCellLeave() { hoverInfo = ''; hoverRow = -1; hoverCol = -1; }
-
-  // Position of cell (row, col) — cells share borders via +1 offset per cell
-  function cellLeft(col) { return LABEL_W + col * (cellSize + 1); }
-  function cellTop(row) { return HEADER_H + row * (cellSize + 1); }
-
-  $: totalW = n > 0 ? LABEL_W + n * cellSize + (n - 1) : 0;
-  $: totalH = n > 0 ? HEADER_H + n * cellSize + (n - 1) : 0;
 </script>
 
 <div class="splom-outer" bind:this={outerEl}>
-  {#if n > 0 && cellSize > 0}
-    <div class="splom-frame" style="width: {totalW}px; height: {totalH}px;">
+  {#if n > 0}
+    <div class="splom-frame" style="width: {idealW}px; height: {idealH}px; transform: scale({scale}); transform-origin: top left;">
       <!-- Log toggle -->
       <button class="log-toggle" class:active={useLog} on:click={() => { useLog = !useLog; }}
               title={useLog ? 'Switch to linear scale' : 'Switch to log₁₀ scale'}>
         {useLog ? 'Log' : 'Lin'}
       </button>
-      <!-- Column headers (45° diagonal) -->
+
+      <!-- Column labels (45° diagonal, anchored at bottom of header area) -->
       {#each fields as f, i}
         <span class="col-label" class:highlight={hoverCol === i}
-              style="left: {cellLeft(i) + cellSize / 2}px; top: {HEADER_H - 4}px;"
+              style="left: {LABEL_W + i * (CELL + 1) + CELL / 2}px; bottom: {idealH - HEADER_H + 2}px;"
               title={fieldLabel(f.key)}>{fieldLabel(f.key)}</span>
       {/each}
+
       <!-- Row labels -->
       {#each fields as f, i}
         <span class="row-label" class:highlight={hoverRow === i}
-              style="top: {cellTop(i)}px; width: {LABEL_W - 4}px; height: {cellSize}px;"
+              style="top: {HEADER_H + i * (CELL + 1)}px; width: {LABEL_W - 4}px; height: {CELL}px;"
               title={fieldLabel(f.key)}>{fieldLabel(f.key)}</span>
       {/each}
-      <!-- Grid background (single-pixel lines) -->
-      <div class="grid-bg" style="left: {LABEL_W}px; top: {HEADER_H}px; width: {n * cellSize + (n - 1)}px; height: {n * cellSize + (n - 1)}px;"></div>
-      <!-- Cells -->
-      {#each { length: n } as _, row}
-        {#each { length: n } as _, col}
-          <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <div class="splom-cell" class:crosshair={hoverRow === row || hoverCol === col} class:hovered={hoverRow === row && hoverCol === col}
-               style="left: {cellLeft(col)}px; top: {cellTop(row)}px; width: {cellSize}px; height: {cellSize}px;"
-               on:mousemove={(e) => onCellHover(e, row, col)}
-               on:mouseleave={onCellLeave}>
-            <canvas bind:this={canvases[cellKey(row, col)]}></canvas>
-          </div>
+
+      <!-- Grid area (background = grid lines) -->
+      <div class="grid-area" style="left: {LABEL_W}px; top: {HEADER_H}px; width: {n * CELL + (n - 1)}px; height: {n * CELL + (n - 1)}px;">
+        {#each { length: n } as _, row}
+          {#each { length: n } as _, col}
+            <!-- svelte-ignore a11y-no-static-element-interactions -->
+            <div class="splom-cell" class:crosshair={hoverRow === row || hoverCol === col} class:hovered={hoverRow === row && hoverCol === col}
+                 style="left: {col * (CELL + 1)}px; top: {row * (CELL + 1)}px; width: {CELL}px; height: {CELL}px;"
+                 on:mousemove={(e) => onCellHover(e, row, col)}
+                 on:mouseleave={onCellLeave}>
+              <canvas bind:this={canvases[cellKey(row, col)]}></canvas>
+            </div>
+          {/each}
         {/each}
-      {/each}
+      </div>
     </div>
+
     {#if hoverInfo}
       <div class="splom-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
     {/if}
@@ -164,18 +158,18 @@
 <style>
   .splom-outer {
     position: relative; width: 100%; height: 100%; overflow: hidden;
-    display: flex; align-items: flex-start; justify-content: center;
   }
   .splom-frame {
-    position: relative; flex-shrink: 0;
+    position: absolute;
   }
   .log-toggle {
-    position: absolute; top: 0; left: 0;
+    position: absolute; top: 0; left: 0; z-index: 2;
     background: var(--surface2); border: 1px solid var(--border);
     color: var(--text-dim); font-family: var(--font); font-size: var(--font-size-xxs);
     padding: 1px var(--space-sm); border-radius: var(--radius-xs); cursor: pointer;
   }
   .log-toggle.active { color: var(--accent); border-color: var(--accent); }
+
   .col-label {
     position: absolute;
     font-size: var(--font-size-xxs); color: var(--text-dim);
@@ -183,26 +177,27 @@
     transform: rotate(-45deg); transition: color 0.1s;
   }
   .col-label.highlight { color: var(--accent); }
+
   .row-label {
     position: absolute; left: 0;
     font-size: var(--font-size-xxs); color: var(--text-dim);
     display: flex; align-items: center; justify-content: flex-end;
-    padding-right: var(--space-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    transition: color 0.1s;
+    padding-right: var(--space-sm); white-space: nowrap;
+    overflow: visible; transition: color 0.1s;
   }
   .row-label.highlight { color: var(--accent); }
-  .grid-bg {
+
+  .grid-area {
     position: absolute; background: var(--border);
   }
   .splom-cell {
-    position: absolute;
-    background: var(--bg);
-    overflow: hidden;
-    transition: background 0.1s;
+    position: absolute; background: var(--bg);
+    overflow: hidden; transition: background 0.1s;
   }
   .splom-cell.crosshair { background: var(--surface); }
   .splom-cell.hovered { background: var(--surface2); }
   .splom-cell canvas { display: block; width: 100%; height: 100%; }
+
   .splom-tip {
     position: absolute; pointer-events: none; z-index: 10;
     background: var(--surface2); border: 1px solid var(--border);
