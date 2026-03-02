@@ -37,6 +37,8 @@
     if (s.has(key)) s.delete(key); else s.add(key);
     $activeFields = s;
   }
+  function selectAll() { $activeFields = new Set(sortedKeys); }
+  function selectNone() { $activeFields = new Set(); }
 
   $: splomFieldsA = sortedKeys
     .filter(key => $activeFields.has(key) && fieldsA[key])
@@ -51,9 +53,9 @@
     if (fieldsB && fieldsB[key]) {
       const sB = summarize(fieldsB[key]);
       const diff = sA.mean - sB.mean;
-      return `${diff >= 0 ? '+' : ''}${fmt(diff)} (Δ)`;
+      return `${diff >= 0 ? '+' : ''}${fmt(diff)} \u0394`;
     }
-    return `${fmt(sA.mean)} (${fmt(sA.min)}..${fmt(sA.max)})`;
+    return `${fmt(sA.min)} \u2026 ${fmt(sA.max)}`;
   }
 
   // --- Vertical resize (panel height) ---
@@ -125,7 +127,13 @@
       <!-- Left: Fields -->
       <div class="col fields-col" bind:this={fieldsEl}
            style={col1W !== null ? `width: ${col1W}px; flex: none;` : ''}>
-        <div class="section-label">Fields</div>
+        <div class="fields-header">
+          <div class="section-label">Fields</div>
+          <div class="field-actions">
+            <button class="field-action" on:click={selectAll}>All</button>
+            <button class="field-action" on:click={selectNone}>None</button>
+          </div>
+        </div>
         <div class="field-list">
           {#each sortedKeys as key}
             <FieldBar label={fieldLabel(key)} value={summaryValue(key)}
@@ -191,6 +199,18 @@
     font-size: var(--font-size-xxs); text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--accent); flex-shrink: 0;
   }
+  .fields-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .field-actions { display: flex; gap: var(--space-xs); }
+  .field-action {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    font-family: var(--font); font-size: var(--font-size-xxs);
+    padding: 0 var(--space-sm); border-radius: var(--radius-xs);
+    cursor: pointer; line-height: 1.5;
+  }
+  .field-action:hover { color: var(--accent); border-color: var(--accent); }
   .field-list {
     display: flex; flex-direction: column; gap: var(--space-xs);
   }

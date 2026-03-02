@@ -1,5 +1,5 @@
 <script>
-  import { showFilters, filters, histogramData, metadataStats, logScale, hoveredItem, thumbFilter, favFilter } from '../lib/stores.js';
+  import { showFilters, showStats, filters, histogramData, metadataStats, logScale, hoveredItem, thumbFilter, favFilter, activeFields } from '../lib/stores.js';
   import { getNestedValue } from '../lib/sort.js';
   import { availableFields } from '../lib/fields.js';
   import { createEventDispatcher } from 'svelte';
@@ -8,7 +8,10 @@
 
   const dispatch = createEventDispatcher();
 
-  $: fields = availableFields($metadataStats);
+  $: allFields = availableFields($metadataStats);
+  $: fields = $showStats && $activeFields.size > 0
+    ? allFields.filter(f => $activeFields.has(f.key))
+    : allFields;
 
   let mins = {};
   let maxs = {};
