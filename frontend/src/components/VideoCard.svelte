@@ -149,6 +149,7 @@
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     background: var(--bg);
   }
+  .thumb-loading .spinner { margin: 0; }
   .thumb-error {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: var(--selected-dim); font-size: var(--font-size-xxs); background: var(--bg);
