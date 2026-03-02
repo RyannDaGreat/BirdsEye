@@ -355,6 +355,29 @@ Six frontend improvements implemented from user feedback:
 - New `/api/export/names` endpoint that runs the same search + filters server-side but returns only video names, no pagination, no enrichment
 - Frontend calls this endpoint for "Export All" instead of reading `$currentResults`
 
+## 2026-03-02 — Statistics Panel v1 Issues
+
+### Scatterplot Matrix Issues (all fixed)
+1. **Blurry rendering**: Canvas was set to CSS pixel dimensions, not physical pixel dimensions. On HiDPI displays (devicePixelRatio > 1), the canvas was upscaled by the browser, causing blur. Fix: `setupCanvas()` multiplies canvas dimensions by `devicePixelRatio` and scales the 2D context.
+2. **Non-square cells**: Grid cells had no aspect constraint, so cells stretched to fill rectangular areas. Fix: `aspect-ratio: 1` on cells.
+3. **Labels inside cells blocking data**: Field names were rendered as absolute-positioned elements inside each cell, overlapping the scatter dots. Fix: moved labels to a separate header row (top) and label column (left), outside the N×N cell grid entirely.
+4. **Vertical unreadable labels**: Left-side labels were rotated 90° which was hard to read. Fix: labels are now horizontal text in a dedicated column.
+5. **No interactivity**: Hovering showed nothing. Fix: mousemove handler computes Pearson correlation coefficient and shows it in a floating tooltip.
+
+### Stats Panel Reactivity Bug
+- **Root cause**: `getSourceItems()` was a function that accessed `$currentResults` and `$selectedVideos` inside its body. Svelte's reactive `$:` only tracks store references in the top-level expression, not inside called functions. So `$: sourceAItems = getSourceItems($statsSourceA)` only re-ran when `$statsSourceA` changed, never when results changed.
+- **Fix**: Pass stores as explicit arguments: `getSourceItems(source, $currentResults, $selectedVideos)` so Svelte sees them as dependencies.
+- **Lesson**: In Svelte, reactive statements must directly reference all stores they depend on in the expression itself. Function calls that access stores internally will NOT trigger reactivity.
+
+### Word Frequency Issues (all fixed)
+- Too few words (only 30), should show up to 80
+- Not scrollable horizontally, should fill full width
+- Labels not centered on bars
+
+### Drag Handle Dot Indicators — Removed
+- Added dot indicators to resize handles, then immediately removed at user request. They weren't needed.
+- **Lesson**: Don't add visual affordances without user request. The resize cursor change on hover is sufficient.
+
 ## 2026-03-02 — Field Taxonomy Clarification
 
 ### Issue
