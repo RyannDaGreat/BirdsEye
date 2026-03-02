@@ -105,7 +105,7 @@ export function fieldStep(key, stats) {
 
 /**
  * Derive the list of available numeric fields from metadataStats.
- * Returns [{key, label, step, description}] for each field.
+ * Returns [{key, label, step, dtype, count}] for each field.
  * Single source used by filters, sort, detail panel.
  * Pure function.
  */
@@ -153,6 +153,5 @@ export function availableFields(metadataStats) {
     step: fieldStep(key, metadataStats[key]),
     dtype: fieldDtype(key),
     count: metadataStats[key]?.count ?? null,
-    description: fieldDescription(key),
   }));
 }

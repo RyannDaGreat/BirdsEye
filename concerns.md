@@ -525,3 +525,82 @@ Score field metadata ("CLIP Score", description, range [0,1], dynamic flag) was 
 
 ### Lesson
 Score field metadata belongs in the processor that produces the embeddings, not in the server. The plugin contract's `embedding_space` is the right place because the processor knows what kind of similarity its embeddings compute and what range the scores will have.
+
+## 2026-03-02 — SigLIP Plugin Integration (Vidi Research → SigLIP)
+
+### Research: Vidi vs SigLIP
+- User asked to integrate the ByteDance Vidi model (https://github.com/bytedance/vidi)
+- **Key finding**: Vidi is a GENERATIVE video-language model (outputs text timestamps/descriptions), NOT an embedding model. It does NOT produce vectors suitable for similarity search.
+- **However**: Vidi's vision tower is `google/siglip-so400m-patch14-384` — a standard contrastive vision-language model (like CLIP but better). SigLIP IS an embedding model.
+- **Decision**: Use SigLIP directly instead of the full Vidi model. Same embeddings, simpler integration, no wasted parameters from the LLM backbone. SigLIP has both vision and text towers (1152-dim shared space).
+
+### Implementation
+- Added `sentencepiece>=0.1.99` and `protobuf>=3.20` to pyproject.toml (required by SigLIP tokenizer)
+- Extracted `mean_pairwise_cosine_distance()` from clip.py to base.py (shared by all embedding processors)
+- Created `preprocess/processors/siglip.py` following exact CLIP processor pattern:
+  - `SiglipProcessor(Processor)` with name="siglip", human_name="SigLIP Embeddings"
+  - 4 artifacts: siglip_embedding.npy, siglip_first.npy, siglip_last.npy, siglip_std.json
+  - 1 field: siglip_std (diversity metric)
+  - 1 dynamic field: siglip_score (via embedding_space.score_field)
+  - embedding_space with prefix="siglip", dim=1152
+  - GPU subprocess pattern with _batched_siglip_forward()
+  - encode_text() with lazy-loaded singleton
+  - Fire CLI with main + gpu_worker subcommands
+- Auto-discovery validates no collisions: 6 processors loaded with zero conflicts
+- Processed 750 pexels samples through SigLIP on 8 GPUs (50 samples in 24s per batch)
+- Cache files created: siglip_embeddings.npz (750x1152), siglip_index.faiss, siglip_names.json
+
+### Tests Created
+- `tests/test_siglip_processor.py` — 24 tests (21 non-GPU + 3 GPU):
+  - Shared math function tests (mean_pairwise_cosine_distance with various dims)
+  - Class attribute validation (name, artifacts, fields, embedding_space, score_field, aggregation)
+  - Collision tests (no artifact/field/prefix/score_key collision with CLIP)
+  - needs_processing tests (empty/complete/partial dirs)
+  - encode_text shape, normalization, semantic similarity tests
+- `tests/test_multi_embedding.py` — 17 tests (13 non-GPU + 4 GPU):
+  - Processor coexistence (both discovered, no collisions, both text encoders found)
+  - Dynamic field ranges for both models
+  - FAISS search with both 512-dim (CLIP) and 1152-dim (SigLIP) mock indices
+  - Similar videos rank higher than dissimilar (cluster test)
+  - Score normalization into stats dict
+  - Both models agree on semantic similarity (cat/kitten > cat/car)
+- Full test suite: 55 passed, 7 skipped, 0 failures
+
+### End-to-end verification
+- SigLIP text search for "sunset over ocean" correctly returns sunset/ocean videos in top results
+- Server loads both clip and siglip vector indices simultaneously
+- Both text encoders available via collect_text_encoders()
+
+### SigLIP characteristics vs CLIP
+- SigLIP scores are numerically lower (0.13 range) vs CLIP (0.29 range) for the same queries
+- This is expected: SigLIP uses sigmoid loss, CLIP uses softmax — different score scales
+- Both use [0,1] range declaration for histogram binning
+- SigLIP model is ~3.6GB (vs CLIP ~600MB) — loads slower, needs more GPU memory
+
+## 2026-03-02: GVE-3B integration fixes
+
+### HuggingFace cache race condition
+- **Bug**: 8 GPU workers calling `from_pretrained("Alibaba-NLP/GVE-3B")` simultaneously race on HuggingFace's cache lock. Some workers fail with `OSError: does not appear to have a file named model-*.safetensors`.
+- **Fix**: `snapshot_download()` in `gpu_worker()` resolves to local path, passed to workers so `from_pretrained()` loads from disk without hub resolution.
+
+### CUDA fork error
+- **Bug**: `set_start_method("spawn")` silently failed when already set, causing CUDA fork errors in GPU workers.
+- **Fix**: Changed to `set_start_method("spawn", force=True)` in `distribute_across_gpus()`.
+
+### GVE OOM on 15GB GPUs
+- **Bug**: Qwen2.5-VL processes images at variable resolution — large thumbnails create many vision tokens, exceeding 15GB VRAM even for a single image.
+- **Fix**: Added `GVE_MAX_PIXELS = 384*384` cap in `_load_image()`, resizing thumbnails before GVE processing. Also `FORWARD_BATCH=1` and `torch.cuda.empty_cache()` between forward passes.
+
+### Text encoders hardcoded to cuda:0
+- **Bug**: All three text encoders (CLIP, SigLIP, GVE) hardcoded `device = "cuda:0"`. When the server tried to load the 3B GVE model, it OOMed on a GPU already occupied by other models.
+- **Fix**: All three now use `rp.select_torch_device(reserve=True)` — picks GPU with most free VRAM, uses filelock so models don't clobber each other.
+
+### FileExistsError in ensure_sample_dir
+- **Bug**: Parallel workers in `compress.py` race on creating `video.mp4` hardlink. `os.path.exists()` check passes for both, first `os.link()` succeeds, second gets `FileExistsError`. The `except OSError` fallback to `os.symlink()` also fails.
+- **Fix**: Added `FileExistsError` handling (pass — the link exists, which is what we wanted).
+
+### Reload button spinner
+- Added spinning animation to the reload dataset button while server cache is reloading. Button stays visible during reload with a CSS spin animation so the user knows something is happening.
+
+### Search bar debounce
+- Unified debounce to 1 second (`DEBOUNCE_MS = 1000`) for all search modes. Previously 500ms for embedding models, 150ms for fuzzy. Enter key still fires immediately.

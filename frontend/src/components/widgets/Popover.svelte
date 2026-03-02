@@ -34,6 +34,8 @@
 
   onDestroy(() => { if (portalEl) portalEl.remove(); });
 
+  let visible = false;
+
   function show() {
     if (!triggerEl || !portalEl) return;
     const rect = triggerEl.getBoundingClientRect();
@@ -41,11 +43,16 @@
     portalEl.style.top = (rect.bottom + 4) + 'px';
     portalEl.innerHTML = text;
     portalEl.style.display = 'block';
+    visible = true;
   }
 
   function hide() {
     if (portalEl) portalEl.style.display = 'none';
+    visible = false;
   }
+
+  // Dynamic immediate tooltip: update content reactively while visible
+  $: if (visible && portalEl) portalEl.innerHTML = text;
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->

@@ -15,9 +15,32 @@ import subprocess as sp
 from abc import ABC, abstractmethod
 from multiprocessing import Pool
 
+import numpy as np
 from tqdm import tqdm
 
 from preprocess.video_utils import sample_dir, save_json_atomic
+
+
+# ========================================================================
+# Shared math — used by multiple embedding processors (clip, siglip, etc.)
+# ========================================================================
+
+def mean_pairwise_cosine_distance(embeddings):
+    """
+    Mean pairwise cosine distance between L2-normalized embeddings. Pure function.
+
+    (N, D) float32 -> scalar float
+
+    >>> mean_pairwise_cosine_distance(np.eye(3, dtype=np.float32))
+    1.0
+    >>> mean_pairwise_cosine_distance(np.ones((3, 512), dtype=np.float32))
+    0.0
+    """
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    normed = embeddings / np.maximum(norms, 1e-8)
+    sims = normed @ normed.T
+    mask = ~np.eye(len(embeddings), dtype=bool)
+    return round(float(1.0 - sims[mask].mean()), 6)
 
 
 class Processor(ABC):
@@ -183,8 +206,13 @@ class Processor(ABC):
         if not os.path.exists(link_path) and os.path.exists(entry["source_path"]):
             try:
                 os.link(entry["source_path"], link_path)
+            except FileExistsError:
+                pass  # Race: another worker created it between our check and link
             except OSError:
-                os.symlink(os.path.abspath(entry["source_path"]), link_path)
+                try:
+                    os.symlink(os.path.abspath(entry["source_path"]), link_path)
+                except FileExistsError:
+                    pass  # Race: another worker created it between our check and symlink
 
         return sd
 
@@ -298,7 +326,7 @@ def distribute_across_gpus(label, samples, worker_fn, make_chunk_args=None):
     from datetime import datetime
 
     try:
-        set_start_method("spawn")
+        set_start_method("spawn", force=True)
     except RuntimeError:
         pass
 

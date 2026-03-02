@@ -120,23 +120,32 @@ export async function exportAllNames(dataset, query, mode, params) {
  * Download a zip of selected sample directories.
  * Triggers browser download of a .zip file.
  */
+import { downloadStatus } from './stores.js';
+
 export async function downloadSamples(dataset, videoNames) {
-  const resp = await fetch('/api/download', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataset, video_names: videoNames }),
-  });
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => null);
-    throw new Error((data && data.error) || `${resp.status} ${resp.statusText}`);
+  downloadStatus.set(`Zipping ${videoNames.length} sample${videoNames.length > 1 ? 's' : ''}.`);
+  try {
+    const resp = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataset, video_names: videoNames }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => null);
+      downloadStatus.set('');
+      throw new Error((data && data.error) || `${resp.status} ${resp.statusText}`);
+    }
+    downloadStatus.set('Downloading zip.');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'birdseye_samples.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    downloadStatus.set('');
   }
-  const blob = await resp.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'birdseye_samples.zip';
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 /**

@@ -1,5 +1,5 @@
 <script>
-  import { detailData, currentDataset, detailWidth, searchQuery, favorites } from '../lib/stores.js';
+  import { detailData, currentDataset, detailWidth, searchQuery, favorites, downloadStatus } from '../lib/stores.js';
   import { formatNumber, collectVideoFields, highlightTerms } from '../lib/format.js';
   import { fieldLabel, fieldTooltip } from '../lib/fields.js';
   import { downloadSamples } from '../lib/api.js';
@@ -84,9 +84,10 @@
         <iconify-icon icon={isFav ? 'mdi:heart' : 'mdi:heart-outline'} inline></iconify-icon>
         {isFav ? 'Favorited' : 'Favorite'}
       </button>
-      <button class="toolbar-btn" on:click={downloadSingle}
-              title="Download this sample's files as a zip">
-        <iconify-icon icon="mdi:download" inline></iconify-icon> Download
+      <button class="toolbar-btn" on:click={downloadSingle} disabled={!!$downloadStatus}
+              title={$downloadStatus || 'Download this sample\'s files as a zip'}>
+        <iconify-icon icon="mdi:download" inline class:icon-spin={!!$downloadStatus}></iconify-icon>
+        {$downloadStatus ? 'Downloading...' : 'Download'}
       </button>
     </div>
 

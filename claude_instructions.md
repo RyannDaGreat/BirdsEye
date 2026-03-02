@@ -21,7 +21,9 @@
 | **Origins** | `origins.json` in each sample dir. Records video_name, caption, source_path, dataset. Created by `ensure_sample_dir()`. |
 | **Sprite** | A 5×5 grid of 25 evenly-spaced frames from a video, saved as `sprite.jpg`. Used for hover scrubbing in the UI. |
 | **Thumbnail** | `thumb_first.jpg`, `thumb_middle.jpg`, `thumb_last.jpg`. 512px height JPEGs of first/middle/last frames. |
-| **Embedding** | A CLIP vector (512-dim float16) per video. Stored per-sample as `.npy`, aggregated into FAISS index. |
+| **Embedding** | A dense vector per video from a contrastive vision-language model. CLIP: 512-dim float16. SigLIP: 1152-dim float16. GVE: 2048-dim float16. Stored per-sample as `.npy`, aggregated into FAISS index. Multiple embedding models can coexist — each gets its own prefix, FAISS index, text encoder, and dynamic score field. |
+| **Immediate Tooltip** | A hover tooltip rendered via the `Popover` component (triggered by `mdi:help-circle-outline` icons). Appears instantly on hover, positioned below the trigger, rendered into `document.body` to escape stacking contexts. Distinguished from browser-native `title` attribute tooltips which have a delay. Used for field descriptions, help text, and status information. |
+| **Dynamic Immediate Tooltip** | An immediate tooltip whose content updates in real time while visible. Used for operations in progress (reload, download) to show live status like "Reloading..." or "Zipping files...". Content is a reactive Svelte expression bound to the Popover's `text` prop. |
 | **Vector Index** | A FAISS `IndexFlatIP` plus parallel `_names.json` and `_embeddings.npz`. Enables cosine similarity search. |
 | **Batch** | A chunk of entries processed together by the pipeline (default 500). Auto-aggregation runs after each batch. |
 | **Pipeline** | `process_all.py`. Discovers processors, resolves dependencies, processes in topological order, batch loop. |
@@ -115,7 +117,7 @@ OR the code is wrong and must be fixed. They must NEVER be out of sync.
 
 A self-contained web application for searching through video datasets using:
 1. **FZF-style fuzzy text search** through video captions
-2. **CLIP semantic search** through pre-computed image embeddings via FAISS
+2. **Semantic search** through pre-computed image embeddings via FAISS (CLIP ViT-B/32 512-dim, SigLIP SO400M 1152-dim — selectable in UI)
 3. **Selection-based refinement** — select videos, then search within / around them (convex hull)
 4. **Export** — copy or download video names as newline-separated text. "Export All" must export ALL matching results from the current search (not just the visible page). "Export Selected" exports only manually selected videos. Both modes support copy-to-clipboard and download-as-file (`.txt`, browser save-as dialog, floppy disk icon `mdi:content-save`).
 5. **Filterable by any numeric field** — histogram range selectors with draggable handles
@@ -175,6 +177,12 @@ datasets/pexels/
           clip_last.npy                  # float16 (512,), from thumb_last.jpg
           clip_std.json                  # {clip_std: 0.0154}
 
+          # === siglip processor ===
+          siglip_embedding.npy             # float16 (1152,), L2-normalized, from thumb_middle.jpg
+          siglip_first.npy                 # float16 (1152,), from thumb_first.jpg
+          siglip_last.npy                  # float16 (1152,), from thumb_last.jpg
+          siglip_std.json                  # {siglip_std: 0.0412}
+
           # === raft_flow processor ===
           flow_stats.json                # {flow_mean_magnitude, flow_max_magnitude, flow_min_magnitude, flow_std_magnitude, flow_temporal_std}
 
@@ -190,8 +198,11 @@ datasets/pexels/
     clip_embeddings.npz                  # (N, 512) float16 matrix
     clip_index.faiss                     # FAISS IndexFlatIP
     clip_names.json                      # Ordered names aligned with FAISS rows
+    siglip_embeddings.npz                # (N, 1152) float16 matrix
+    siglip_index.faiss                   # FAISS IndexFlatIP
+    siglip_names.json                    # Ordered names aligned with FAISS rows
     video_metadata.json                  # {name: {width, height, fps, ...}} merged
-    video_stats.json                     # {name: {clip_std, flow_mean_magnitude, ...}} merged
+    video_stats.json                     # {name: {clip_std, siglip_std, flow_mean_magnitude, ...}} merged
     cache_manifest.json                  # {samples_included: [...], timestamp: "..."}
 ```
 
@@ -364,6 +375,24 @@ Produces per sample (4 files):
 
 Fields (1): clip_std
 
+### siglip (`preprocess/processors/siglip.py`)
+
+**Depends on**: `["ingest"]` (needs thumb_first/middle/last.jpg)
+**Parallelization**: subprocess for CUDA isolation → torch.multiprocessing across all GPUs
+
+Model: `google/siglip-so400m-patch14-384` (SoViT-400m, 1152-dim). SigLIP is Google's successor to CLIP — trained on WebLI dataset with sigmoid contrastive loss, producing higher-quality embeddings. Architecture: 27-layer vision transformer with 384x384 input, 14x14 patches. Both vision and text towers output 1152-dim embeddings. Batched GPU inference via `_batched_siglip_forward()` — FORWARD_BATCH=32 images per GPU forward pass (larger model than CLIP, smaller batch). Same prefetch pattern as CLIP.
+
+The SigLIP text encoder enables text-to-video search through the frontend's embedding model switcher — users can choose between CLIP and SigLIP for semantic search.
+
+Produces per sample (4 files):
+- `siglip_embedding.npy` — float16 (1152,), L2-normalized, from thumb_middle.jpg
+- `siglip_first.npy` — from thumb_first.jpg
+- `siglip_last.npy` — from thumb_last.jpg
+- `siglip_std.json` — `{siglip_std: float}` mean pairwise cosine distance of the 3 embeddings
+
+Fields (1): siglip_std
+Dynamic field: siglip_score (cosine similarity to search query, range [0, 1])
+
 ### raft_flow (`preprocess/processors/raft_flow.py`)
 
 **Depends on**: `["ingest"]` (needs sprite.jpg)
@@ -457,6 +486,7 @@ VLM verification on first batch: check that thumbnails and CLIP search results a
 
 ```
 compress ──→ ingest ──→ clip
+                    ──→ siglip
                     ──→ raft_flow
                     ──→ phash
 ```
@@ -558,6 +588,8 @@ Two modes: **full scan** (standalone) and **batch** (auto-aggregation from pipel
 
 ## Server
 
+**The server MUST run on a machine with GPUs.** Embedding-based text search (CLIP, SigLIP, GVE) requires GPU-accelerated text encoding at query time. When a user searches "sunset over ocean" in CLIP mode, the server encodes the query text into a 512-dim vector via the CLIP model, then uses FAISS to find nearest neighbors. Each embedding model's text encoder is loaded lazily on first use onto a separate GPU via `rp.select_torch_device(reserve=True)`. With 3 embedding models, the server may use up to 3 GPUs simultaneously (one per text encoder). If GPUs are unavailable, text search will fall back to CPU (slow) or fail.
+
 Reads from `cache/` only. Loads all data generically:
 - JSON dicts (video_metadata.json, video_stats.json) discovered from cache_manifest.json
 - Vector indices ({prefix}_index.faiss) discovered by scanning cache/ for `*_index.faiss` files
@@ -654,7 +686,7 @@ Renders in the SearchHeader (between title and dataset selector). Polls `/api/st
 ### Frontend Components
 
 Components in `frontend/src/components/`:
-- `SearchHeader.svelte` — search bar, mode selector, reload indicator
+- `SearchHeader.svelte` — search bar (debounced to `DEBOUNCE_MS = 1000`ms, Enter fires immediately), mode selector, reload indicator
 - `VideoGrid.svelte` — paginated grid of video cards
 - `VideoCard.svelte` — thumbnail + sprite hover + favorite heart
 - `DetailPanel.svelte` — inline video detail with metadata, video playback
@@ -662,7 +694,7 @@ Components in `frontend/src/components/`:
 - `StatsPanel.svelte` — dataset statistics display (three resizable columns)
 - `ExportModal.svelte` — copy selected video names
 - `StatusBar.svelte` — bottom status bar
-- `ReloadIndicator.svelte` — pulsing reload icon when new data available
+- `ReloadIndicator.svelte` — pulsing reload icon when new data available; spinning animation while reload is in progress
 - `SyntaxHelp.svelte` — search syntax reference
 - `SettingsPanel.svelte` — stub for future settings
 
@@ -1862,6 +1894,14 @@ class MyEmbeddingProcessor(Processor):
         "dim": 768,
         "model": "my-model-name",
         "description": "My embedding model description",
+        "score_field": {
+            "key": "my_embed_score",
+            "label": "My Model Score",
+            "description": "Cosine similarity between query and video embedding.",
+            "dtype": "float",
+            "dynamic": True,
+            "range": [0, 1],
+        },
     }
 
     aggregation = [
@@ -1872,10 +1912,50 @@ class MyEmbeddingProcessor(Processor):
     @staticmethod
     def encode_text(query):
         \"\"\"Encode text into embedding space. Lazy-load model.\"\"\"
+        # Use rp.select_torch_device(reserve=True) for GPU selection!
         # ... load model, tokenize, encode, return (768,) float32 ...
 ```
 
 The server auto-discovers it. The frontend auto-adds a mode tab for it.
+
+**GPU selection for text encoders:** All `encode_text()` implementations MUST use
+`rp.select_torch_device(reserve=True)` instead of hardcoding `cuda:0`. This function
+picks the GPU with the most free VRAM and uses filelock-based reservation so multiple
+text encoders (CLIP, SigLIP, GVE) each land on separate GPUs. Without this, all models
+would fight for `cuda:0` and the largest model (GVE-3B at ~8GB) would OOM. The `reserve=True`
+flag allocates a small tensor immediately to mark the GPU as claimed, preventing other
+encoders from choosing the same one.
+The `score_field` declaration makes the score appear as a dynamic field everywhere
+(filters, field bars, SPLOM, sort dropdown, detail panel) with the ✦ marker.
+The `range` ensures stable histogram axis ranges.
+
+**Current embedding processors:**
+- **clip** — `openai/clip-vit-base-patch32`, 512-dim, score key `score`
+- **siglip** — `google/siglip-so400m-patch14-384`, 1152-dim, score key `siglip_score`
+- **gve** — `Alibaba-NLP/GVE-3B`, 2048-dim, score key `gve_score`. Single unified model for text+vision (not dual-encoder). Loaded as native Qwen2.5-VL (bypasses custom HF code incompatible with transformers 5.x). Images capped at 384x384 to limit VRAM.
+
+Shared math functions (e.g., `mean_pairwise_cosine_distance`) live in `base.py`
+and are imported by all embedding processors.
+
+### Artifact Redundancy Checks
+
+There are two layers of redundancy protection, at different granularity:
+
+1. **Batch-level (`filter_todo`)** — `process_all.py` calls `needs_processing()` per sample before each batch. Samples where ALL artifacts exist are skipped entirely. This is the coarse filter.
+
+2. **Per-artifact (plugin responsibility)** — Inside `process()` or the GPU worker, each plugin SHOULD check whether individual artifacts already exist before computing them. This is the fine-grained filter. Since one function call may produce multiple artifacts (e.g., 3 frame embeddings + 1 stats JSON), the plugin is the only code that knows which artifacts are independent and can be skipped individually.
+
+   **Why this matters:** If a GPU run crashes after writing 2 of 3 frame embeddings, `needs_processing()` still returns True (one artifact missing), and the sample re-enters the pipeline. Without per-artifact checks, all 3 embeddings would be recomputed. With per-artifact checks, only the missing one is computed.
+
+   **Implementation pattern:**
+   ```python
+   output_path = os.path.join(sd, "my_artifact.npy")
+   if not os.path.exists(output_path):
+       result = expensive_computation(...)
+       save_npy_atomic(result, output_path)
+   ```
+
+   This delegation is intentional — `base.py` handles coarse filtering, plugins handle fine-grained skipping.
 
 ### Common Pitfalls
 
@@ -1886,6 +1966,7 @@ The server auto-discovers it. The frontend auto-adds a mode tab for it.
 - **Fire CLI at the bottom is required** — Enables standalone execution.
 - **`process()` must only touch the given entries** — Never scan all samples.
 - **`depends_on` must list real processor names** — Circular deps are detected and error.
+- **Text encoders must use `rp.select_torch_device(reserve=True)`** — Not `cuda:0`. Each encoder lands on a different GPU via filelock coordination.
 
 ---
 

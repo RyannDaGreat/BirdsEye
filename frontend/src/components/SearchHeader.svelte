@@ -31,12 +31,12 @@
     return m ? `Semantic search via ${m.name}: ${m.description}` : 'Semantic search';
   }
 
+  const DEBOUNCE_MS = 1000;
   let debounceTimer;
 
   function onInput() {
     clearTimeout(debounceTimer);
-    const delay = ($currentMode in $embeddingModels) ? 500 : 150;
-    debounceTimer = setTimeout(() => dispatch('search'), delay);
+    debounceTimer = setTimeout(() => dispatch('search'), DEBOUNCE_MS);
   }
 
   function onKeydown(e) {

@@ -19,6 +19,9 @@ export const loading = writable(false);
 export const errorMsg = writable('');
 export const errorHint = writable('');
 
+// --- Download state ---
+export const downloadStatus = writable('');  // '' = idle, or status text like 'Zipping files...'
+
 // --- Panel visibility ---
 export const showFilters = writable(false);
 export const showStats = writable(false);

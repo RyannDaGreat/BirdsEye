@@ -15,7 +15,9 @@
   let currentCounts = null;
   let hasNewData = false;
   let reloading = false;
+  let reloadPhase = '';
   let interval;
+  let dotInterval;
 
   async function checkStatus() {
     try {
@@ -39,24 +41,33 @@
     }
   }
 
+  function startDots() {
+    let dots = 0;
+    dotInterval = setInterval(() => { dots = (dots + 1) % 4; reloadPhase = reloadPhase.replace(/\.+$/, '') + '.'.repeat(dots || 1); }, 400);
+  }
+  function stopDots() { clearInterval(dotInterval); }
+
   async function reload() {
     reloading = true;
+    reloadPhase = 'Reloading server cache.';
+    startDots();
     try {
-      // Tell server to re-read cache from disk
       const resp = await fetch(`/api/reload/${$currentDataset}`);
       const result = await resp.json();
       if (result.status === 'ok') {
-        // Reset our snapshot to the new state
+        reloadPhase = 'Refreshing stores.';
         initialCounts = null;
         currentCounts = null;
         hasNewData = false;
-        await checkStatus();  // capture new baseline
-        // Tell App.svelte to re-fetch all frontend stores
+        await checkStatus();
         dispatch('reload');
+        reloadPhase = 'Done!';
       }
     } catch (e) {
       console.error('Reload failed:', e);
+      reloadPhase = 'Reload failed.';
     }
+    stopDots();
     reloading = false;
   }
 
@@ -90,18 +101,20 @@
     return changes.length ? '<br/>' + changes.join('<br/>') : '';
   }
 
-  $: tooltipText = hasNewData
-    ? '<strong>New data available</strong>' + buildChangeDetails() + '<br/><em>Click to reload server cache</em>'
-    : '<strong>Data up to date</strong><br/>Polling every 30s for new samples.';
+  $: tooltipText = reloading
+    ? `<strong>${reloadPhase}</strong>`
+    : hasNewData
+      ? '<strong>New data available</strong>' + buildChangeDetails() + '<br/><em>Click to reload server cache</em>'
+      : '<strong>Data up to date</strong><br/>Polling every 30s for new samples.';
 </script>
 
-{#if hasNewData}
+{#if hasNewData || reloading}
   <Popover text={tooltipText}>
     <span slot="trigger">
-      <button class="control reload-btn active-toggle" on:click={reload}
+      <button class="control reload-btn" on:click={reload}
               disabled={reloading}
-              title="New data available — click to reload server cache">
-        <iconify-icon icon="mdi:refresh" inline></iconify-icon>
+              title={reloading ? 'Reloading server cache...' : 'New data available — click to reload server cache'}>
+        <iconify-icon icon="mdi:refresh" inline class:icon-spin={reloading}></iconify-icon>
       </button>
     </span>
   </Popover>
@@ -109,9 +122,14 @@
 
 <style>
   .reload-btn { animation: pulse 2s infinite; }
-  .reload-btn:disabled { animation: none; opacity: 0.5; }
+  .reload-btn:disabled { animation: none; opacity: 0.7; }
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
+  }
+  :global(.icon-spin) { animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 </style>

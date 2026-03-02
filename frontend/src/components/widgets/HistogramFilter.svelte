@@ -12,7 +12,7 @@
   export let max = '';
   export let step = 1;
   export let numBins = 60;
-  export let description = '';
+  export let helpTip = '';
   export let useLog = true;
   export let indicatorValue = null; // value to show as vertical line indicator
   export let count = null; // number of samples that have this field
@@ -110,8 +110,8 @@
   <div class="hf-row">
     <span class="hf-label-group">
       <span class="label-sm">
-        {#if description}
-          <Popover text={'<strong>' + label + '</strong><br/>' + description}>
+        {#if helpTip}
+          <Popover text={helpTip}>
             <span slot="trigger" class="hf-help"><iconify-icon icon="mdi:help-circle-outline" inline></iconify-icon></span>
           </Popover>
         {/if}

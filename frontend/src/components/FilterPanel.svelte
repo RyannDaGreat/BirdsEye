@@ -1,7 +1,7 @@
 <script>
   import { showFilters, showStats, filters, histogramData, metadataStats, logScale, hoveredItem, thumbFilter, favFilter, activeFields, hoveredFields } from '../lib/stores.js';
   import { getNestedValue } from '../lib/sort.js';
-  import { availableFields } from '../lib/fields.js';
+  import { availableFields, fieldTooltip } from '../lib/fields.js';
   import { createEventDispatcher } from 'svelte';
   import HistogramFilter from './widgets/HistogramFilter.svelte';
   import TernaryFilter from './widgets/TernaryFilter.svelte';
@@ -74,7 +74,7 @@
              on:mouseleave={() => $hoveredFields = new Set()}>
           <HistogramFilter
             label={def.label}
-            description={def.description || ''}
+            helpTip={fieldTooltip(def.key)}
             histogram={$histogramData[def.key] || null}
             useLog={$logScale}
             highlighted={$hoveredFields.has(def.key)}
