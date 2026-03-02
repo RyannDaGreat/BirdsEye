@@ -465,3 +465,63 @@ The architecture had a fundamental mismatch: `score` is computed per-query (not 
 
 ### Lesson
 Dynamic fields must not be second-class. The principle: **one field, one path through the system**. If a field exists, it appears in field bars, histograms, filters, SPLOM, sort, and detail — no exceptions. The only acceptable difference: dynamic fields get the ✦ marker and sort first.
+
+### Consolidation — Normalization Instead of Special Cases
+The initial fix added score-specific code in 7+ places. User correctly identified this as too much code for adding one field. The real fix: **normalize at the source**. `enrich_results()` now sweeps ALL top-level numeric values on result dicts into `stats` via a generic loop (not score-specific). This eliminated:
+- `if "score" in r` in `compute_result_histograms()` — deleted
+- `if key == "score"` in `get_sort_value()` — deleted
+- `if (item.score !== undefined)` in `collectNumericFields()` — deleted
+- `if (typeof data.score === 'number')` in `collectVideoFields()` — deleted
+- `if (key === 'score')` in `getNestedValue()` — deleted
+- `if (item.score !== undefined) info.score = item.score` in `onDetail()` — replaced with generic stats merge
+- `item.score` in `VideoCard.svelte` — replaced with `getNestedValue(item, 'score')`
+
+One 4-line normalization loop replaced 7 special cases. Any future dynamic field (e.g., aesthetic_score, motion_score) gets the same treatment automatically.
+
+**Key distinction**: "dynamic" means computed at query time, not stored on disk. Fields from processors/datasets are crystallized to disk during processing and are NOT dynamic. Only fields that change based on the search query or user action (like CLIP similarity score) are dynamic. The `dynamic: True` flag in `/api/field_info` is set explicitly per field — it's NOT automatic from the normalization sweep.
+
+### The Ratchet Problem — Dynamic Field Histogram X-Axis
+**Problem**: Dynamic fields have no dataset-wide min/max. Initial approach derived min/max from current results and used that for the histogram x-axis. When the user filtered to a narrow range, the next search returned narrower results, which updated the x-axis to a narrower range, which pushed the filter handles back to the edges — making it impossible to widen the filter. A one-way ratchet.
+
+**Fix**: Dynamic fields declare their theoretical range in `field_info` (e.g., `"range": [0, 1]` for cosine similarity). The server uses this declared range for histogram binning (`DYNAMIC_FIELD_RANGES`, derived from `SERVER_FIELDS`). The histogram x-axis is always 0–1 for score, regardless of what the current results contain. The frontend augments `metadataStats` with the histogram's stable lo/hi, and only ever expands (never shrinks) the range.
+
+**Also fixed**: Duplicate score in sort dropdown (hardcoded `<option value="score">` AND `availableFields()` both included it). Removed the hardcoded option — score now comes through `dynamicFields` like every other field. Also: detail panel field order wasn't sorted — `collectVideoFields()` now applies `sortFieldKeys()` so dynamic fields appear first.
+
+### SPLOM Font Size
+Changed from hardcoded `9px` to named constant `LABEL_FONT_SIZE = 14` (1.5x increase per user request).
+
+## 2026-03-02 — CLIP/Score Knowledge Hardcoded Outside Plugin System
+
+### Problem — Major Architectural Violation
+Score field metadata ("CLIP Score", description, range [0,1], dynamic flag) was hardcoded in `SERVER_FIELDS` in `server/app.py`. This violates the plugin architecture: CLIP knowledge should come from the CLIP processor plugin, not be baked into the server. The server should be model-agnostic. If a second embedding model (e.g., SigLIP, DINOv2) is added as a processor plugin, it should declare its own score field and everything should just work — but it couldn't, because the server hardcoded "CLIP Score".
+
+**14 places** had CLIP/score-specific code outside the plugin:
+- `SERVER_FIELDS` in app.py (label, description, range, dynamic flag)
+- `DYNAMIC_FIELD_RANGES` derived from SERVER_FIELDS
+- `field_info()` merging SERVER_FIELDS into response
+- Fuzzy search hardcoding `"clip"` index + encoder
+- VideoCard.svelte hardcoding `'score'` lookup + `* 100`
+- `FIELD_ORDER` in fields.js including `'clip_std'` and `'score'`
+- Various `index="clip"` defaults
+- Error messages mentioning "CLIP" by name
+
+### Fix — Score Field Declared by Plugin
+1. Added `score_field` to `embedding_space` in `ClipProcessor`:
+   ```python
+   "score_field": {"key": "score", "label": "CLIP Score", "description": "...", "dtype": "float", "dynamic": True, "range": [0, 1]}
+   ```
+2. Updated `collect_field_info()` in `__init__.py` to also collect score fields from `embedding_space.score_field`
+3. Removed `SERVER_FIELDS` from app.py entirely
+4. `DYNAMIC_FIELD_RANGES` now derived from processor plugins
+5. `field_info()` uses only plugin-provided fields (no server-hardcoded ones)
+
+### Remaining Hardcoded Items (acceptable or deferred)
+- `get_vector_index()` default `prefix="clip"` — acceptable default, overridden by dynamic mode selection
+- `clip_search()` function name — code is actually generic FAISS search, name is historical
+- `searchClip` in api.js — calls the generic `/api/search/clip` endpoint
+- VideoCard.svelte `'score'` lookup — this is the field key, not CLIP-specific
+- `FIELD_ORDER` including `'score'` and `'clip_std'` — presentation preference, not logic
+- Error messages mentioning "CLIP" — should be made dynamic in future (use model name from plugin)
+
+### Lesson
+Score field metadata belongs in the processor that produces the embeddings, not in the server. The plugin contract's `embedding_space` is the right place because the processor knows what kind of similarity its embeddings compute and what range the scores will have.

@@ -34,6 +34,7 @@
 
   const CELL = 80;
   const HIST_BINS = 20;
+  const LABEL_FONT_SIZE = 14;
   const PAD_LEFT = 150;
   const PAD_RIGHT = 150;
   const PAD_TOP = 150;
@@ -103,7 +104,7 @@
     }
 
     // Column labels (45° diagonal)
-    ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
+    ctx.font = LABEL_FONT_SIZE + 'px ' + getComputedStyle(document.body).fontFamily;
     ctx.textAlign = 'left';
     ctx.fillStyle = colorDim;
     for (let i = 0; i < n; i++) {
@@ -171,7 +172,7 @@
 
     // Highlighted labels (overdraw on top of cached dim labels)
     if ((hoverRow >= 0 && hoverRow < n) || (hoverCol >= 0 && hoverCol < n)) {
-      ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
+      ctx.font = LABEL_FONT_SIZE + 'px ' + getComputedStyle(document.body).fontFamily;
       ctx.fillStyle = cssVar('--accent');
       if (hoverCol >= 0 && hoverCol < n) {
         ctx.textAlign = 'left';

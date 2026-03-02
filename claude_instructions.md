@@ -26,7 +26,7 @@
 | **Batch** | A chunk of entries processed together by the pipeline (default 500). Auto-aggregation runs after each batch. |
 | **Pipeline** | `process_all.py`. Discovers processors, resolves dependencies, processes in topological order, batch loop. |
 | **Ingest** | The processor that opens the best proxy video once via PyAV and extracts all frame-based artifacts (thumbnails, sprite sheet) plus metadata. Depends on compress. All downstream processors work on these extracted files, never touching the raw video again. |
-| **Enriched** | A search result with `metadata` and `stats` dicts attached by the server before returning to frontend. |
+| **Enriched** | A search result with `metadata` and `stats` dicts attached by the server before returning to frontend. During enrichment, `enrich_results()` also normalizes any top-level numeric values (set by search plugins, e.g., score) into `stats`. This means the frontend has ONE uniform place to find all numeric fields — `item.metadata` for ingest-level data and `item.stats` for everything else (processor stats, dataset fields, AND dynamic fields). No special cases needed per-field. |
 | **Hull** | Convex hull search. Finds videos nearest to the centroid of selected videos' embeddings. |
 | **Field Bar** | A UI chip showing a numeric field label (dim) and value (accent). Shared component (`FieldBar.svelte`) used in both stats panel and detail panel. Two parts: label (gray, left) and value (blue/accent, right). Only displays numeric fields. In the stats panel, field bars are toggleable (click to include/exclude from scattergram) — toggleable bars show a small icon (`mdi:check` in accent / `mdi:close` in dim) on the left and `title="Click to toggle"`. Values are right-aligned (`margin-left: auto`), bars width: `max-content` (widest bar, not full column). Active border is 40% opacity accent (not solid). Has `highlighted` prop for cross-component hover highlighting. In the stats panel, field bar tooltips follow the mouse (using `.mouse-tip` class) instead of Popover, because Popover blocks the view of adjacent fields. |
 | **Ternary Filter** | A 3-state UI toggle cycling Any → Only → None. Used for thumbnail and favorites filtering. |
@@ -1422,19 +1422,13 @@ Never prioritize security work in this project.
 
 #### Step 3: Tiny high-impact bug fixes
 
-**B5 — Score histogram missing from result histograms** (2 lines)
-- File: `server/app.py:390-396` in `compute_result_histograms`
-- Problem: Collects values from `r.get("metadata")` and `r.get("stats")` but NOT from
-  `r.get("score")`. The `score` field (CLIP cosine similarity) is a top-level key on result
-  dicts, not nested under metadata or stats. So score never appears in result histograms.
-- Fix: Add before the source loop:
-  ```python
-  for r in results:
-      if "score" in r and isinstance(r["score"], (int, float)):
-          fields.setdefault("score", []).append(r["score"])
-      for source in [r.get("metadata") or {}, r.get("stats") or {}]:
-          ...
-  ```
+**B5 — Dynamic fields missing from result histograms** (RESOLVED)
+- Original problem: `compute_result_histograms` only iterated `metadata` and `stats`, missing
+  top-level dynamic fields like `score`. Also, histogram loop was gated on `metadata_stats.items()`,
+  so even collected dynamic values were discarded.
+- Fix: `enrich_results()` now normalizes ALL top-level numeric values into `stats` (generic sweep,
+  not score-specific). And `compute_result_histograms()` now also emits histograms for fields NOT
+  in `metadata_stats`, computing min/max from collected values. No per-field special cases anywhere.
 
 **D5 — Zero vectors pollute FAISS index** (2 lines)
 - File: `preprocess/processors/clip.py:173-175`

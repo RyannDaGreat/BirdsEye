@@ -238,6 +238,14 @@ class ClipProcessor(Processor):
         "dim": CLIP_DIM,
         "model": CLIP_MODEL,
         "description": "CLIP ViT-B/32 cosine similarity",
+        "score_field": {
+            "key": "score",
+            "label": "CLIP Score",
+            "description": "Cosine similarity between the text embedding of the search query and the image embedding of the video's middle frame. Text encoded at query time, image embeddings pre-computed. Higher = more visually similar to query text.",
+            "dtype": "float",
+            "dynamic": True,
+            "range": [0, 1],
+        },
     }
 
     @staticmethod

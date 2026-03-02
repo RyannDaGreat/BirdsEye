@@ -309,18 +309,17 @@ def apply_filters(results, video_metadata, filters, video_stats=None, dataset_fi
 def get_sort_value(item, key):
     """
     Resolve a sort key to a numeric value from enriched result item.
-    Checks item directly, then metadata, then stats.
+    Checks metadata, then stats. Dynamic fields (e.g., score) are in stats
+    after normalization by enrich_results().
     Pure function.
 
-    >>> get_sort_value({"video_name": "a", "score": 0.5, "metadata": {"fps": 30}}, "score")
+    >>> get_sort_value({"video_name": "a", "stats": {"score": 0.5}, "metadata": {"fps": 30}}, "score")
     0.5
     >>> get_sort_value({"video_name": "a", "metadata": {"fps": 30}}, "fps")
     30
     >>> get_sort_value({"video_name": "a"}, "missing") is None
     True
     """
-    if key == "score":
-        return item.get("score")
     if key == "name":
         return item.get("video_name")
     meta = item.get("metadata")
@@ -343,7 +342,7 @@ def sort_results(results, sort_key, sort_dir="desc", random_seed=0):
     ['a', 'b', 'c']
     >>> [r["video_name"] for r in sort_results(items, "name", "desc")]
     ['c', 'b', 'a']
-    >>> items2 = [{"video_name": "a", "score": 0.3}, {"video_name": "b", "score": 0.9}]
+    >>> items2 = [{"video_name": "a", "stats": {"score": 0.3}}, {"video_name": "b", "stats": {"score": 0.9}}]
     >>> [r["video_name"] for r in sort_results(items2, "score", "desc")]
     ['b', 'a']
     """

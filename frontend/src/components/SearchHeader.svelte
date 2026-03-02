@@ -1,6 +1,6 @@
 <script>
-  import { currentDataset, currentMode, currentSort, searchQuery, datasets, metadataStats, showFilters, showStats, showHelp, embeddingModels, fieldInfo } from '../lib/stores.js';
-  import { availableFields, fieldLabel } from '../lib/fields.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, datasets, metadataStats, showFilters, showStats, showHelp, embeddingModels } from '../lib/stores.js';
+  import { availableFields } from '../lib/fields.js';
   import { parseSortKey } from '../lib/format.js';
   import { createEventDispatcher } from 'svelte';
   import ReloadIndicator from './ReloadIndicator.svelte';
@@ -76,7 +76,7 @@
   function onSortFieldChange() { updateSort(); }
 
   $: dynamicFields = availableFields($metadataStats);
-  $: scoreLabel = ($fieldInfo, fieldLabel('score'));  // reactive: re-evaluates when fieldInfo loads
+  // Score and other dynamic fields come from availableFields() via dynamicFields — no hardcoding needed
 </script>
 
 <div class="header">
@@ -109,7 +109,6 @@
   <select class="control" bind:value={sortField} on:change={onSortFieldChange} title="Sort results by a field">
     <option value="">Unsorted</option>
     <option value="random">Random</option>
-    <option value="score">{scoreLabel}</option>
     <option value="name">Name</option>
     {#each dynamicFields as f}
       <option value={f.key}>{f.label}</option>

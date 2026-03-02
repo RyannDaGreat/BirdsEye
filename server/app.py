@@ -378,10 +378,15 @@ def create_app(port=8899):
     if fav_total:
         print(f"Loaded {fav_total} favorites across {len(FAVORITES)} dataset(s)")
 
+    # Structural keys on result dicts — everything else that's numeric is a dynamic field.
+    RESULT_STRUCTURAL_KEYS = {"video_name", "caption", "source_path", "metadata", "stats"}
+
     def enrich_results(results, ds, thumb_filter="any", fav_filter="any", fav_set=None):
         """
         Attach metadata, stats, and dataset fields to each result item.
         Apply ternary filters: thumb_filter and fav_filter ('any'|'only'|'none').
+        Normalizes top-level numeric values (e.g., score from search plugins)
+        into the stats dict so downstream code has one uniform place to find fields.
         """
         meta = ds.get("video_metadata") or {}
         stats_data = ds.get("video_stats") or {}
@@ -406,28 +411,41 @@ def create_app(port=8899):
                 r["stats"] = stats_data[name]
             if name in ds_fields:
                 r.setdefault("stats", {}).update(ds_fields[name])
+            # Normalize: sweep top-level numeric values into stats (e.g., score from plugins)
+            for k in list(r.keys()):
+                if k not in RESULT_STRUCTURAL_KEYS and isinstance(r[k], (int, float)):
+                    r.setdefault("stats", {})[k] = r.pop(k)
             enriched.append(r)
         return enriched
+
+    # Stable axis ranges for dynamic fields, derived from processor plugin declarations.
+    # Processors with embedding_space.score_field can declare a "range" for histogram binning.
+    # Prevents the ratchet problem (see concerns.md).
+    DYNAMIC_FIELD_RANGES = {}
+    for _proc in all_procs.values():
+        _es = getattr(_proc, 'embedding_space', None)
+        if _es and 'score_field' in _es:
+            _sf = _es['score_field']
+            if 'range' in _sf:
+                DYNAMIC_FIELD_RANGES[_sf['key']] = tuple(_sf['range'])
 
     def compute_result_histograms(results, metadata_stats, bins=60):
         """
         Compute histogram bin counts from enriched search results.
-        Uses stable axis ranges (lo/hi) from full-dataset metadata_stats.
-        Always returns an entry for every field in metadata_stats,
-        even if no results have that field (zero counts).
+        Uses stable axis ranges: metadata_stats for static fields,
+        DYNAMIC_FIELD_RANGES for dynamic fields.
         Returns {field: {lo, hi, counts, count}}.
         """
-        # Collect values per field from results
+        # Collect values per field from results (dynamic fields are in stats
+        # after normalization by enrich_results)
         fields = {}
         for r in results:
-            if "score" in r and isinstance(r["score"], (int, float)):
-                fields.setdefault("score", []).append(r["score"])
             for source in [r.get("metadata") or {}, r.get("stats") or {}]:
                 for k, v in source.items():
                     if isinstance(v, (int, float)):
                         fields.setdefault(k, []).append(v)
 
-        # Build histograms for ALL metadata_stats fields (stable set)
+        # Build histograms for ALL metadata_stats fields (stable dataset-wide range)
         histograms = {}
         for field, stats in metadata_stats.items():
             lo = stats["min"]
@@ -436,13 +454,15 @@ def create_app(port=8899):
             counts = bin_values(values, lo, hi, bins)
             histograms[field] = {"lo": lo, "hi": hi, "counts": counts, "count": len(values)}
 
-        # Also emit histograms for dynamic fields not in metadata_stats (e.g., score).
-        # These have no pre-computed range, so we derive min/max from the result values.
+        # Also emit histograms for dynamic fields not in metadata_stats.
+        # Use declared range if available, otherwise derive from result values.
         for field, values in fields.items():
             if field in histograms or not values:
                 continue
-            lo = min(values)
-            hi = max(values)
+            if field in DYNAMIC_FIELD_RANGES:
+                lo, hi = DYNAMIC_FIELD_RANGES[field]
+            else:
+                lo, hi = min(values), max(values)
             counts = bin_values(values, lo, hi, bins)
             histograms[field] = {"lo": lo, "hi": hi, "counts": counts, "count": len(values)}
 
@@ -601,11 +621,8 @@ def create_app(port=8899):
         plugin_fields = collect_field_info(all_procs)
         image_artifacts, data_artifacts = collect_artifact_info(all_procs)
 
-        # Server-only fields (not from any processor)
-        all_fields = {
-            "score": {"label": "CLIP Score", "description": "Cosine similarity between the text embedding of the search query and the image embedding of the video's middle frame. Text encoded at query time, image embeddings pre-computed. Higher = more visually similar to query text.", "dtype": "float", "source": "Server", "dynamic": True},
-        }
-        all_fields.update(plugin_fields)
+        # All fields come from plugins (including dynamic score fields from embedding_space)
+        all_fields = dict(plugin_fields)
 
         # Add dataset-native fields (tagged with dataset human_name)
         for ds_mod in dataset_modules.values():

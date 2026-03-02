@@ -143,6 +143,8 @@ def resolve_dependencies(enabled_names, all_processors):
 def collect_field_info(processors):
     """
     Collect all field metadata from all processors into one dict.
+    Includes both per-sample fields (proc.fields) and dynamic score fields
+    declared in proc.embedding_space.score_field.
     Tags each field with 'source' = processor human_name.
 
     Pure function.
@@ -154,6 +156,11 @@ def collect_field_info(processors):
     for proc in processors.values():
         for key, info in proc.fields.items():
             fields[key] = {**info, "source": proc.human_name}
+        # Score field declared by embedding-producing processors
+        es = getattr(proc, 'embedding_space', None)
+        if es and 'score_field' in es:
+            sf = es['score_field']
+            fields[sf['key']] = {**{k: v for k, v in sf.items() if k != 'key'}, "source": proc.human_name}
     return fields
 
 

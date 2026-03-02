@@ -13,8 +13,7 @@ export function collectNumericFields(items) {
   const push = (k, v) => { (fields[k] = fields[k] || []).push(v); };
 
   for (const item of items) {
-    if (item.score !== undefined) push('score', item.score);
-    // Iterate metadata + stats — no hardcoded field names
+    // Dynamic fields (e.g., score) are normalized into stats by the server
     for (const source of [item.metadata, item.stats]) {
       if (!source) continue;
       for (const [k, v] of Object.entries(source)) {

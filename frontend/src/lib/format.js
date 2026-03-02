@@ -1,6 +1,7 @@
 /**
  * Shared formatting functions. All pure.
  */
+import { sortFieldKeys } from './fields.js';
 
 /**
  * Format a number for display: integers stay whole, floats get fixed decimals.
@@ -155,21 +156,18 @@ export function humanFilesize(bytes) {
 
 /**
  * Collect all numeric fields from a video_info response into [{key, value}].
- * Iterates metadata + stats, plus top-level dynamic fields (e.g., score).
+ * Iterates metadata + stats. Dynamic fields (e.g., score) are in stats
+ * after normalization by the server's enrich_results().
+ * Sorted by canonical field ordering (dynamic first, then FIELD_ORDER, then alpha).
  * Pure function.
- *
- * @param {object} data - video_info response (may include .metadata, .stats, .score, etc.)
- * @returns {{key: string, value: number}[]} sorted by field ordering
  */
 export function collectVideoFields(data) {
-  const fields = [];
-  // Dynamic top-level fields (e.g., score from search results)
-  if (typeof data.score === 'number') fields.push({ key: 'score', value: data.score });
+  const map = {};
   for (const source of [data.metadata, data.stats]) {
     if (!source) continue;
     for (const [k, v] of Object.entries(source)) {
-      if (typeof v === 'number') fields.push({ key: k, value: v });
+      if (typeof v === 'number') map[k] = v;
     }
   }
-  return fields;
+  return sortFieldKeys(Object.keys(map)).map(k => ({ key: k, value: map[k] }));
 }

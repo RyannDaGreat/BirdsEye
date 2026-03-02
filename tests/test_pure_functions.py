@@ -72,7 +72,8 @@ class TestSortResults:
         assert [r["video_name"] for r in result] == ["a", "b", "c"]
 
     def test_sort_by_score_desc(self):
-        items = [{"video_name": "a", "score": 0.3}, {"video_name": "b", "score": 0.9}]
+        # Score is in stats after normalization by enrich_results()
+        items = [{"video_name": "a", "stats": {"score": 0.3}}, {"video_name": "b", "stats": {"score": 0.9}}]
         result = sort_results(items, "score", "desc")
         assert result[0]["video_name"] == "b"
 
@@ -104,7 +105,8 @@ class TestPaginate:
 
 class TestGetSortValue:
     def test_score(self):
-        assert get_sort_value({"video_name": "a", "score": 0.5}, "score") == 0.5
+        # Score is in stats after normalization by enrich_results()
+        assert get_sort_value({"video_name": "a", "stats": {"score": 0.5}}, "score") == 0.5
 
     def test_metadata(self):
         assert get_sort_value({"video_name": "a", "metadata": {"fps": 30}}, "fps") == 30

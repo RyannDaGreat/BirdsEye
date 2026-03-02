@@ -4,6 +4,7 @@
   import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNames, downloadSamples } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
+  import { isDynamicField } from './lib/fields.js';
 
   import SearchHeader from './components/SearchHeader.svelte';
   import FilterPanel from './components/FilterPanel.svelte';
@@ -121,14 +122,27 @@
         $totalResults = data.total || 0;
         if (data.histograms) {
           $histogramData = data.histograms;
-          // Augment metadataStats with dynamic fields from result histograms (e.g., score).
-          // This lets availableFields() pick them up so FilterPanel shows them.
+          // Augment metadataStats with dynamic fields from result histograms.
+          // Static fields (from server) already have stable dataset-wide ranges — skip them.
+          // Dynamic fields (e.g., score) only exist in results, so we track their range here.
+          // Range only EXPANDS (min of mins, max of maxes) to prevent the ratchet problem:
+          // filtering to a narrow range must not shrink the x-axis, or handles lock to edges.
           const augmented = { ...$metadataStats };
           let changed = false;
           for (const [key, hist] of Object.entries(data.histograms)) {
-            if (!(key in augmented)) {
+            if (!isDynamicField(key)) continue;
+            const prev = augmented[key];
+            if (!prev) {
               augmented[key] = { min: hist.lo, max: hist.hi, count: hist.count };
               changed = true;
+            } else {
+              const newMin = Math.min(prev.min, hist.lo);
+              const newMax = Math.max(prev.max, hist.hi);
+              const newCount = Math.max(prev.count, hist.count);
+              if (newMin !== prev.min || newMax !== prev.max || newCount !== prev.count) {
+                augmented[key] = { min: newMin, max: newMax, count: newCount };
+                changed = true;
+              }
             }
           }
           if (changed) $metadataStats = augmented;
@@ -190,8 +204,12 @@
   async function onDetail(e) {
     const item = e.detail;
     const info = await fetchVideoInfo($currentDataset, item.video_name);
-    // Preserve dynamic fields (e.g., score) from the search result item
-    if (item.score !== undefined) info.score = item.score;
+    // Merge dynamic fields from the search result item into the detail data's stats.
+    // Server normalizes dynamic fields into item.stats; video_info endpoint doesn't
+    // have them (it doesn't know the query), so we carry them over from the result.
+    if (item.stats) {
+      info.stats = { ...(info.stats || {}), ...item.stats };
+    }
     $detailData = info;
   }
 

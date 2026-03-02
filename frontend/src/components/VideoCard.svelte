@@ -26,10 +26,11 @@
   // Sort badge
   $: ({ key: sortKey } = parseSortKey($currentSort));
   $: sortVal = sortKey ? getNestedValue(item, sortKey) : undefined;
+  $: scoreVal = getNestedValue(item, 'score');
   $: badgeText = sortKey && sortVal !== undefined
     ? formatNumber(sortVal)
-    : (item.score !== undefined ? formatNumber(item.score * 100, 1) : '');
-  $: badgeTitle = sortKey ? fieldLabel(sortKey) : (item.score !== undefined ? 'Similarity score' : '');
+    : (scoreVal !== undefined ? formatNumber(scoreVal * 100, 1) : '');
+  $: badgeTitle = sortKey ? fieldLabel(sortKey) : (scoreVal !== undefined ? fieldLabel('score') : '');
 
   let hoverFrame = 'middle';
   $: currentSrc = hoverFrame === 'first' ? firstUrl : hoverFrame === 'last' ? lastUrl : middleUrl;
