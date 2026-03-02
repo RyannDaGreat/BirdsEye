@@ -33,6 +33,9 @@
 
   $: nw = displayWords.length;
   $: maxAbs = nw > 0 ? Math.max(...displayWords.map(w => Math.abs(w.value))) : 1;
+  $: maxWordLen = nw > 0 ? Math.max(...displayWords.map(w => w.word.length)) : 0;
+  // ~5.5px per character at font-size-xxs (9px) in vertical mode, plus padding
+  $: labelH = Math.max(30, maxWordLen * 5.5 + 4);
 
   function barHeight(w) {
     return maxAbs > 0 ? (Math.abs(w.value) / maxAbs) * 100 : 0;
@@ -62,7 +65,7 @@
               <div class="bar-fill" style="height: {barHeight(w)}%; background: {barColor(w)};"
                    title={tooltip(w)}></div>
             </div>
-            <span class="bar-label">{w.word}</span>
+            <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
           </div>
         {/each}
       </div>
@@ -111,7 +114,7 @@
     font-size: var(--font-size-xxs); color: var(--text-dim);
     white-space: nowrap; padding-top: var(--space-xs);
     user-select: text; cursor: text;
-    max-height: 60px; overflow: hidden; text-overflow: clip;
+    flex-shrink: 0; overflow: hidden;
   }
   .bar-col.hovered .bar-label { color: var(--accent); }
   .hover-info {
