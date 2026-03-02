@@ -227,7 +227,7 @@
   .analysis-col {
     flex: 1; min-width: 0; position: relative;
     display: flex; flex-direction: column;
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-sm) var(--space-md) 0;
   }
   .col-fixed {
     flex-shrink: 0;
