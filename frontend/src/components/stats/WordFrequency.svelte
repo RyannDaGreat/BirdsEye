@@ -54,14 +54,16 @@
   $: labelH = Math.max(30, maxWordLen * 5.5 + 4);
 
   function logVal(v) { return v > 0 ? Math.log10(v + 1) : 0; }
-  $: maxAbsLog = nw > 0 ? Math.max(...displayWords.map(w => logVal(Math.abs(w.value)))) : 1;
 
-  function barHeight(w) {
+  // Precompute bar heights reactively so Svelte tracks useLog dependency
+  $: barHeights = (() => {
     if (useLog) {
-      return maxAbsLog > 0 ? (logVal(Math.abs(w.value)) / maxAbsLog) * 100 : 0;
+      const logVals = displayWords.map(w => logVal(Math.abs(w.value)));
+      const lmax = Math.max(...logVals, 0);
+      return logVals.map(lv => lmax > 0 ? (lv / lmax) * 100 : 0);
     }
-    return maxAbs > 0 ? (Math.abs(w.value) / maxAbs) * 100 : 0;
-  }
+    return displayWords.map(w => maxAbs > 0 ? (Math.abs(w.value) / maxAbs) * 100 : 0);
+  })();
 
   function barColor(w) {
     return (w.isDiff && w.value < 0) ? 'var(--selected)' : 'var(--accent)';
@@ -86,7 +88,7 @@
                on:mousemove={onColMove}
                on:mouseleave={() => hoverIdx = -1}>
             <div class="bar-track">
-              <div class="bar-fill" style="height: {barHeight(w)}%; background: {barColor(w)};"
+              <div class="bar-fill" style="height: {barHeights[i]}%; background: {barColor(w)};"
                    title={tooltip(w)}></div>
             </div>
             <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
