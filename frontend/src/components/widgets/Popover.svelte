@@ -14,7 +14,7 @@
     portalEl = document.createElement('div');
     Object.assign(portalEl.style, {
       position: 'fixed',
-      zIndex: '99999',
+      zIndex: 'var(--z-tooltip)',
       background: 'var(--surface)',
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius)',

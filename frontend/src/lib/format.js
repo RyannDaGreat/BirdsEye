@@ -112,6 +112,23 @@ export function dynamicFieldLabel(name) {
 }
 
 /**
+ * Compute fixed-position tooltip coordinates from a mouse event.
+ * Returns {x, y} in viewport pixels, offset so the tooltip appears
+ * to the right and slightly above the cursor.
+ * Pure function.
+ *
+ * @param {MouseEvent} e
+ * @returns {{x: number, y: number}}
+ *
+ * >>> // tipPos({clientX: 100, clientY: 200}) → {x: 112, y: 192}
+ */
+const TIP_OFFSET_X = 12;
+const TIP_OFFSET_Y = -8;
+export function tipPos(e) {
+  return { x: e.clientX + TIP_OFFSET_X, y: e.clientY + TIP_OFFSET_Y };
+}
+
+/**
  * Format a file size in bytes to human-readable string (KB, MB, GB, etc.).
  * Uses 1024-based units to match rp.human_readable_file_size behavior.
  * Pure function.

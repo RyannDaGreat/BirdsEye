@@ -48,6 +48,9 @@
   /* Clear button */
   --clear-btn-size: 14px;
 
+  /* Z-index layers */
+  --z-tooltip: 99999;
+
   /* Icons */
   --icon-scale: 1.4;
   --icon-valign: -0.25em;
@@ -209,9 +212,9 @@ body {
 .separator { border-bottom: 1px solid var(--border); }
 .separator.dotted { border-bottom-style: dotted; }
 
-/* === Mouse-following tooltip === */
+/* === Mouse-following tooltip (fixed to viewport, escapes all stacking contexts) === */
 .mouse-tip {
-  position: absolute; pointer-events: none; z-index: 10;
+  position: fixed; pointer-events: none; z-index: var(--z-tooltip);
   background: var(--surface2); border: 1px solid var(--border);
   color: var(--text); padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-xs); font-size: var(--font-size-xs);

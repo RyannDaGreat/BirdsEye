@@ -6,7 +6,7 @@
 <script>
   import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
   import { collectNumericFields, summarize } from '../lib/stats.js';
-  import { formatNumber } from '../lib/format.js';
+  import { formatNumber, tipPos } from '../lib/format.js';
   import { fieldLabel, fieldTooltip, sortFieldKeys } from '../lib/fields.js';
   import FieldBar from './widgets/FieldBar.svelte';
   import ScatterplotMatrix from './stats/ScatterplotMatrix.svelte';
@@ -54,10 +54,9 @@
   let fieldTipY = 0;
   let analysisEl;
   function onFieldMove(e) {
-    if (!analysisEl) return;
-    const r = analysisEl.getBoundingClientRect();
-    fieldTipX = e.clientX - r.left + 12;
-    fieldTipY = e.clientY - r.top - 8;
+    const p = tipPos(e);
+    fieldTipX = p.x;
+    fieldTipY = p.y;
   }
 
   $: splomFieldsA = sortedKeys

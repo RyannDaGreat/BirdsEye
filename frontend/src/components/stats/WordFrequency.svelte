@@ -5,6 +5,7 @@
 -->
 <script>
   import { wordFrequencies } from '../../lib/stats.js';
+  import { tipPos } from '../../lib/format.js';
 
   export let itemsA = [];
   export let itemsB = null;
@@ -21,10 +22,9 @@
   }
   function onColMove(e) { updateTip(e); }
   function updateTip(e) {
-    if (!outerEl) return;
-    const r = outerEl.getBoundingClientRect();
-    tipX = e.clientX - r.left + 12;
-    tipY = e.clientY - r.top - 8;
+    const p = tipPos(e);
+    tipX = p.x;
+    tipY = p.y;
   }
 
   $: freqsA = wordFrequencies(itemsA, 150);

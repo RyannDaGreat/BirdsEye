@@ -8,6 +8,7 @@
   import { drawScatter, drawHistogram, findAlphaBounds } from '../../lib/canvas.js';
   import { pearsonCorrelation } from '../../lib/stats.js';
   import { fieldLabel } from '../../lib/fields.js';
+  import { tipPos } from '../../lib/format.js';
   import { hoveredFields } from '../../lib/stores.js';
 
   export let fields = [];
@@ -243,9 +244,9 @@
         const r = pearsonCorrelation(fields[col].values, fields[row].values);
         hoverInfo = `${fieldLabel(fields[col].key)} × ${fieldLabel(fields[row].key)}: r = ${r.toFixed(3)}`;
       }
-      const outerRect = outerEl.getBoundingClientRect();
-      hoverX = e.clientX - outerRect.left + 12;
-      hoverY = e.clientY - outerRect.top - 8;
+      const tp = tipPos(e);
+      hoverX = tp.x;
+      hoverY = tp.y;
     } else if (hoverRow >= 0) {
       hoverRow = -1; hoverCol = -1; hoverInfo = '';
       $hoveredFields = new Set();
