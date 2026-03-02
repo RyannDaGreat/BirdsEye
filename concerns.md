@@ -410,3 +410,26 @@ Six frontend improvements implemented from user feedback:
 - **Dynamic** = the persistence axis (stored on disk vs computed on-the-fly)
 - These are orthogonal: you can have a dynamic numeric field (CLIP Score) or a stored string field (caption)
 - Updated glossary to reflect this 2×2 taxonomy
+
+## 2026-03-02 — Statistics Panel Polish Session
+
+### Mistakes
+
+**Checkbox widgets instead of small icons**: User asked for "checkmarks" on field bars. I implemented `mdi:checkbox-marked` / `mdi:checkbox-blank-outline` which looked terrible — wrong theme, not centered, too visually heavy. User clarified they wanted small iconify icons (`mdi:check` / `mdi:close`) in the accent color theme. Lesson: "checkmark" ≠ "checkbox widget."
+
+**Field bars stretching full width**: Made field bars `display: flex; width: 100%` which stretched them across the entire column. User wanted them only as wide as the longest field. Fix: `width: max-content; max-width: 100%` on the field-list container.
+
+**Active border too aggressive**: Solid `var(--accent)` border on active field bars was visually overwhelming in a list of many fields. User requested 50% transparency. Fix: `border-color: rgba(74, 158, 255, 0.4)`.
+
+**Filter histograms reappearing when stats closed**: Original logic: `$showStats ? allFields.filter(...) : allFields` — closing stats brought back ALL histograms. This defeated the entire purpose of field toggling (decluttering filters). The user's intent: `activeFields` is a persistent selection that controls visibility everywhere, regardless of whether the stats panel is open. Fix: always filter by `activeFields` when it has been initialized.
+
+**Word frequency log mode barely visible**: `log10(pct + 1)` where pct is ~0.01–0.05 produces `log10(1.01)–log10(1.05)` ≈ 0.004–0.021 — essentially linear for small values. Users expected dramatic compression like in SPLOM (which operates on raw values spanning orders of magnitude). Fix: use `Math.log10(count)` which uses actual occurrence counts (5 to 500+) that DO span orders of magnitude.
+
+**SPLOM not reacting to external hover**: Implemented `hoveredFields` store but SPLOM only SET it on its own hover — it didn't SUBSCRIBE to external changes. Field bar and histogram hover didn't highlight SPLOM rows/columns. Fix: reactive block watches `$hoveredFields`, translates field keys to row/col indices, renders crosshair. `localHover` flag prevents infinite loop with SPLOM's own hover events.
+
+### Decisions
+
+- **Separators must touch edges**: User aesthetic preference — all lines/separators must touch adjacent borders with zero gaps. Achieved via negative margins to break out of column padding.
+- **Field tooltips follow mouse**: Popover tooltips on field bars blocked adjacent fields. Replaced with mouse-following `.mouse-tip` div in the stats panel (detail panel still uses Popover).
+- **Same-source comparisons disabled**: Results−Results, Dataset−Dataset, Selection−Selection are useless (zero differential). Bottom row disables whichever source the top row has selected.
+- **Alpha-crop SPLOM canvas**: Eliminates wasted padding from generous label reserves (PAD_LEFT/RIGHT/TOP = 150px each). `findAlphaBounds()` scans for non-zero alpha pixels and crops to tight bounding box.

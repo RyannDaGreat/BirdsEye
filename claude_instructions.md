@@ -2192,13 +2192,32 @@ Implementation:
 
 Field summaries display `min … max` with unicode ellipsis (`\u2026`), no parentheses. In differential mode: `+/-diff Δ`.
 
+### activeFields and Filter Coupling
+
+`activeFields` store is the single source of truth for which numeric fields are enabled. It controls:
+1. Which field bars are shown as "active" (checked) in the stats Analysis column
+2. Which fields appear in the SPLOM scatterplot matrix
+3. Which histogram filters are visible in the FilterPanel
+
+**Critical behavior**: `activeFields` persists regardless of whether the stats panel is open or closed. Closing stats does NOT bring back all histograms — that would defeat the purpose of decluttering the filter area. The filter panel ALWAYS respects `activeFields` once it's been initialized.
+
+**Auto-clear hidden filters**: When a field is removed from `activeFields`, any existing filter range for that field is automatically cleared from the `filters` store. This prevents hidden fields from silently filtering results.
+
+**Rationale**: The filter area can be overwhelmingly large with many histograms. Field toggling lets users focus on the fields they care about. A disabled field means "I don't care about this" — it should not filter, not show a histogram, not appear in the SPLOM.
+
+### Data Source Selector: No Same-Source Comparisons
+
+The bottom row (source B) disables whichever source the top row (source A) has selected. If source A changes to match source B, B auto-resets to "None."
+
+**Rationale**: Results−Results, Dataset−Dataset, Selection−Selection produce zero differential — they're useless comparisons. Disabling the matching option prevents user confusion.
+
 ### Statistics Panel Empty States
 
 Zero fields can be selected (user controls field visibility via toggleable field bars). One-time initialization: `activeFields` is initialized to all fields on first data load, never auto-refilled after.
 
 - **SPLOM** (no fields selected): "Select fields in the Analysis column to show the scatterplot matrix."
-- **FilterPanel** (no fields selected, stats visible): "Select fields in the Analysis panel to show filter histograms." with a "Hide Statistics" button.
-- **FilterPanel** (stats off, no numeric fields): "No numeric fields available in this dataset."
+- **FilterPanel** (no fields active, fields exist): "Select fields in the Analysis panel to show filter histograms." with "Open Statistics" button.
+- **FilterPanel** (no numeric fields in dataset): "No numeric fields available in this dataset."
 
 ### Word Frequency Log Scale
 
