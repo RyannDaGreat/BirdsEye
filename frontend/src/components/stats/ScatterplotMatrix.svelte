@@ -1,31 +1,46 @@
 <!--
   Scatterplot Matrix (SPLOM): N×N grid of pairwise scatter plots.
-  Diagonal cells: histogram per field. Off-diagonal: scatter plots.
-  Canvas-rendered at native DPI for crisp output. Always square cells.
-  Labels outside the grid (top header + left column). Hover shows correlation.
+  Diagonal: histogram. Off-diagonal: scatter. Always square cells.
+  Cell size computed from container dimensions. Dividing lines between cells.
+  Labels outside grid. Hover shows Pearson correlation.
 -->
 <script>
-  import { tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { setupCanvas, drawScatter, drawHistogram } from '../../lib/canvas.js';
   import { pearsonCorrelation } from '../../lib/stats.js';
   import { fieldLabel } from '../../lib/fields.js';
 
-  export let fields = [];     // [{key, values: number[]}]
-  export let fieldsB = null;  // same shape, or null
+  export let fields = [];
+  export let fieldsB = null;
 
   let canvases = {};
-  let containerEl;
+  let outerEl;
+  let cellSize = 0;
   let hoverInfo = '';
   let hoverX = 0;
   let hoverY = 0;
+  let observer;
+
+  const LABEL_W = 60;
+  const HEADER_H = 18;
+  const GAP = 1;
 
   $: n = fields.length;
 
-  function cellKey(row, col) { return `${row}_${col}`; }
+  function cellKey(r, c) { return `${r}_${c}`; }
+
+  function computeLayout() {
+    if (!outerEl || n === 0) { cellSize = 0; return; }
+    const rect = outerEl.getBoundingClientRect();
+    const availW = rect.width - LABEL_W - GAP * (n - 1);
+    const availH = rect.height - HEADER_H - GAP * (n - 1);
+    cellSize = Math.max(20, Math.floor(Math.min(availW / n, availH / n)));
+  }
 
   async function renderAll() {
+    computeLayout();
     await tick();
-    if (!containerEl || n === 0) return;
+    if (cellSize <= 0 || n === 0) return;
 
     for (let row = 0; row < n; row++) {
       for (let col = 0; col < n; col++) {
@@ -50,38 +65,51 @@
 
   $: if (fields && n > 0) renderAll();
 
+  onMount(() => {
+    observer = new ResizeObserver(() => renderAll());
+    if (outerEl) observer.observe(outerEl);
+  });
+  onDestroy(() => { if (observer) observer.disconnect(); });
+
   function onCellHover(e, row, col) {
     if (row === col) {
-      const vals = fields[row].values;
-      hoverInfo = `${fieldLabel(fields[row].key)}: ${vals.length} samples`;
+      hoverInfo = `${fieldLabel(fields[row].key)}: ${fields[row].values.length} samples`;
     } else {
       const r = pearsonCorrelation(fields[col].values, fields[row].values);
       hoverInfo = `${fieldLabel(fields[col].key)} × ${fieldLabel(fields[row].key)}: r = ${r.toFixed(3)}`;
     }
-    const rect = containerEl.getBoundingClientRect();
+    const rect = outerEl.getBoundingClientRect();
     hoverX = e.clientX - rect.left + 12;
     hoverY = e.clientY - rect.top - 8;
   }
 
   function onCellLeave() { hoverInfo = ''; }
+
+  $: gridW = n > 0 ? LABEL_W + n * cellSize + (n - 1) * GAP : 0;
+  $: gridH = n > 0 ? HEADER_H + n * cellSize + (n - 1) * GAP : 0;
 </script>
 
-{#if n > 0}
-  <div class="splom-outer" bind:this={containerEl}>
-    <!-- Column headers (top) -->
-    <div class="splom-header-row" style="grid-template-columns: var(--label-w) repeat({n}, 1fr);">
-      <div class="corner"></div>
-      {#each fields as f}
-        <div class="col-label" title={fieldLabel(f.key)}>{fieldLabel(f.key)}</div>
+{#if n > 0 && cellSize > 0}
+  <div class="splom-outer" bind:this={outerEl}>
+    <div class="splom-frame" style="width: {gridW}px; height: {gridH}px;">
+      <!-- Column headers -->
+      <div class="header-row" style="left: {LABEL_W}px; height: {HEADER_H}px;">
+        {#each fields as f, i}
+          <span class="col-label" style="left: {i * (cellSize + GAP)}px; width: {cellSize}px;"
+                title={fieldLabel(f.key)}>{fieldLabel(f.key)}</span>
+        {/each}
+      </div>
+      <!-- Row labels -->
+      {#each fields as f, i}
+        <span class="row-label" style="top: {HEADER_H + i * (cellSize + GAP)}px; width: {LABEL_W}px; height: {cellSize}px;"
+              title={fieldLabel(f.key)}>{fieldLabel(f.key)}</span>
       {/each}
-    </div>
-    <!-- Grid rows: row label + N cells -->
-    <div class="splom-body" style="grid-template-columns: var(--label-w) repeat({n}, 1fr); grid-template-rows: repeat({n}, 1fr);">
+      <!-- Cells -->
       {#each { length: n } as _, row}
-        <div class="row-label" title={fieldLabel(fields[row].key)}>{fieldLabel(fields[row].key)}</div>
         {#each { length: n } as _, col}
           <!-- svelte-ignore a11y-no-static-element-interactions -->
           <div class="splom-cell"
+               style="left: {LABEL_W + col * (cellSize + GAP)}px; top: {HEADER_H + row * (cellSize + GAP)}px; width: {cellSize}px; height: {cellSize}px;"
                on:mousemove={(e) => onCellHover(e, row, col)}
                on:mouseleave={onCellLeave}>
             <canvas bind:this={canvases[cellKey(row, col)]}></canvas>
@@ -89,43 +117,41 @@
         {/each}
       {/each}
     </div>
-    <!-- Hover tooltip -->
     {#if hoverInfo}
       <div class="splom-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
     {/if}
   </div>
 {:else}
-  <div class="splom-empty">Toggle fields in Summary view to show the scatterplot matrix.</div>
+  <div class="splom-empty" bind:this={outerEl}>Toggle fields in Summary view to show the scatterplot matrix.</div>
 {/if}
 
 <style>
   .splom-outer {
-    --label-w: 60px;
-    position: relative; display: flex; flex-direction: column;
-    height: 100%; overflow: hidden;
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    display: flex; align-items: flex-start; justify-content: center;
   }
-  .splom-header-row {
-    display: grid; flex-shrink: 0;
+  .splom-frame {
+    position: relative; flex-shrink: 0;
   }
-  .corner { }
+  .header-row {
+    position: absolute; top: 0;
+  }
   .col-label {
+    position: absolute; top: 0;
     font-size: var(--font-size-xxs); color: var(--text-dim);
     text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    padding: var(--space-xs) 0;
-  }
-  .splom-body {
-    display: grid; flex: 1; gap: 1px; background: var(--border);
-    min-height: 0;
+    line-height: 18px;
   }
   .row-label {
+    position: absolute; left: 0;
     font-size: var(--font-size-xxs); color: var(--text-dim);
     display: flex; align-items: center; justify-content: flex-end;
-    padding-right: var(--space-sm);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    background: var(--surface);
+    padding-right: var(--space-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .splom-cell {
-    background: var(--bg); overflow: hidden; aspect-ratio: 1;
+    position: absolute;
+    background: var(--bg); border: 1px solid var(--border);
+    overflow: hidden;
   }
   .splom-cell canvas { display: block; width: 100%; height: 100%; }
   .splom-tip {
@@ -137,6 +163,6 @@
   }
   .splom-empty {
     display: flex; align-items: center; justify-content: center;
-    height: 100%; color: var(--text-dim); font-size: var(--font-size-control);
+    width: 100%; height: 100%; color: var(--text-dim); font-size: var(--font-size-control);
   }
 </style>
