@@ -213,7 +213,7 @@
       {useLog ? 'Log' : 'Lin'}
     </button>
     {#if hoverInfo}
-      <div class="splom-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
+      <div class="mouse-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
     {/if}
   {:else}
     <div class="splom-empty">Toggle fields in Summary view to show the scatterplot matrix.</div>
@@ -231,13 +231,6 @@
     padding: 1px var(--space-sm); border-radius: var(--radius-xs); cursor: pointer;
   }
   .log-toggle.active { color: var(--accent); border-color: var(--accent); }
-  .splom-tip {
-    position: absolute; pointer-events: none; z-index: 10;
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text); padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-xs); font-size: var(--font-size-xs);
-    white-space: nowrap;
-  }
   .splom-empty {
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%; color: var(--text-dim); font-size: var(--font-size-control);

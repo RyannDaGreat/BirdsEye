@@ -10,6 +10,21 @@
   export let itemsB = null;
 
   let hoverIdx = -1;
+  let tipX = 0;
+  let tipY = 0;
+  let outerEl;
+
+  function onColEnter(i, e) {
+    hoverIdx = i;
+    updateTip(e);
+  }
+  function onColMove(e) { updateTip(e); }
+  function updateTip(e) {
+    if (!outerEl) return;
+    const r = outerEl.getBoundingClientRect();
+    tipX = e.clientX - r.left + 12;
+    tipY = e.clientY - r.top - 8;
+  }
 
   $: freqsA = wordFrequencies(itemsA, 150);
   $: freqsB = itemsB ? wordFrequencies(itemsB, 300) : null;
@@ -53,25 +68,27 @@
   }
 </script>
 
-<div class="words-outer">
+<div class="words-outer" bind:this={outerEl}>
   {#if nw > 0}
     <div class="words-scroll">
       <div class="bars-row">
         {#each displayWords as w, i}
           <!-- svelte-ignore a11y-no-static-element-interactions -->
           <div class="bar-col" class:hovered={hoverIdx === i}
-               on:mouseenter={() => hoverIdx = i} on:mouseleave={() => hoverIdx = -1}>
+               on:mouseenter={(e) => onColEnter(i, e)}
+               on:mousemove={onColMove}
+               on:mouseleave={() => hoverIdx = -1}>
+            <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
             <div class="bar-track">
               <div class="bar-fill" style="height: {barHeight(w)}%; background: {barColor(w)};"
                    title={tooltip(w)}></div>
             </div>
-            <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
           </div>
         {/each}
       </div>
     </div>
     {#if hoverIdx >= 0 && hoverIdx < nw}
-      <div class="hover-info">{tooltip(displayWords[hoverIdx])}</div>
+      <div class="mouse-tip" style="left: {tipX}px; top: {tipY}px;">{tooltip(displayWords[hoverIdx])}</div>
     {/if}
   {:else}
     <div class="words-empty">No captions available.</div>
@@ -88,7 +105,7 @@
     overflow-x: auto; overflow-y: hidden;
   }
   .bars-row {
-    display: flex; align-items: flex-end;
+    display: flex;
     height: 100%; gap: 1px;
   }
   .bar-col {
@@ -109,20 +126,12 @@
   .bar-col.hovered .bar-fill { opacity: 0.9; }
   .bar-label {
     writing-mode: vertical-lr;
-    transform: rotate(180deg);
     font-size: var(--font-size-xxs); color: var(--text-dim);
-    white-space: nowrap; padding-top: var(--space-xs);
+    white-space: nowrap;
     user-select: text; cursor: text;
     flex-shrink: 0; overflow: hidden;
   }
   .bar-col.hovered .bar-label { color: var(--accent); }
-  .hover-info {
-    position: absolute; bottom: var(--space-sm); left: var(--space-md);
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text); padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-xs); font-size: var(--font-size-xs);
-    white-space: nowrap; pointer-events: none;
-  }
   .words-empty {
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%; color: var(--text-dim); font-size: var(--font-size-control);

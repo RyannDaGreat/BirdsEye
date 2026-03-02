@@ -68,16 +68,25 @@
     e.preventDefault();
   }
 
-  // --- Horizontal column splits ---
-  let col1W = 180;   // Fields column width
-  let col3W = 300;   // Words column width
+  // --- Horizontal column splits (null = use flex 1/3 default) ---
+  let col1W = null;
+  let col3W = null;
   let hDrag = 0;     // 0=none, 1=left split, 2=right split
   let hStartX = 0;
   let hStartW = 0;
 
+  let fieldsEl;
+  let wordsEl;
+
   function startSplit(which, e) {
     hDrag = which; hStartX = e.clientX;
-    hStartW = which === 1 ? col1W : col3W;
+    if (which === 1) {
+      if (col1W === null && fieldsEl) col1W = fieldsEl.getBoundingClientRect().width;
+      hStartW = col1W || 0;
+    } else {
+      if (col3W === null && wordsEl) col3W = wordsEl.getBoundingClientRect().width;
+      hStartW = col3W || 0;
+    }
     document.body.style.cursor = 'ew-resize';
     document.body.style.userSelect = 'none';
     e.preventDefault();
@@ -107,13 +116,15 @@
 
 {#if $showStats}
   <div class="stats-panel" style="height: {$statsHeight}px;">
-    <div class="stats-header">
+    <div class="stats-header separator dotted">
+      <div class="section-label">Data Source</div>
       <DataSourceSelector />
     </div>
 
     <div class="stats-body">
       <!-- Left: Fields -->
-      <div class="col fields-col" style="width: {col1W}px;">
+      <div class="col fields-col" bind:this={fieldsEl}
+           style={col1W !== null ? `width: ${col1W}px; flex: none;` : ''}>
         <div class="section-label">Fields</div>
         <div class="field-list">
           {#each sortedKeys as key}
@@ -141,7 +152,8 @@
       <div class="split-handle" on:mousedown={(e) => startSplit(2, e)} title="Drag to resize"></div>
 
       <!-- Right: Words -->
-      <div class="col words-col" style="width: {col3W}px;">
+      <div class="col words-col" bind:this={wordsEl}
+           style={col3W !== null ? `width: ${col3W}px; flex: none;` : ''}>
         <div class="section-label">Word Frequency</div>
         <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} />
       </div>
@@ -171,7 +183,7 @@
   }
   .col { min-height: 0; overflow: hidden; }
   .fields-col {
-    flex-shrink: 0;
+    flex: 1; min-width: 0;
     overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-xs);
     padding: 0 var(--space-sm);
   }
@@ -188,7 +200,7 @@
     padding: 0 var(--space-sm);
   }
   .words-col {
-    flex-shrink: 0;
+    flex: 1; min-width: 0;
     display: flex; flex-direction: column;
     padding: 0 var(--space-sm);
   }
