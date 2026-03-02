@@ -4,7 +4,15 @@ set -e
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO_ROOT"
 
-PORT="${1:-8899}"
+# Parse arguments: run.sh [PORT] [--skip-aggregate]
+PORT=8899
+SKIP_AGGREGATE=false
+for arg in "$@"; do
+    case "$arg" in
+        --skip-aggregate) SKIP_AGGREGATE=true ;;
+        *)                PORT="$arg" ;;
+    esac
+done
 
 # Ensure uv is available
 if ! command -v uv &> /dev/null; then
@@ -31,34 +39,62 @@ if [ -d "frontend" ]; then
     echo ""
 fi
 
-# Check if preprocessing has been done
-if [ ! -f "datasets/pexels/manifest.json" ]; then
-    echo "ERROR: No manifest found. Run preprocessing first:"
-    echo "  bash preprocess/run_pipeline.sh"
+# Discover datasets with manifest.json
+DATASETS=()
+for d in datasets/*/manifest.json; do
+    [ -f "$d" ] && DATASETS+=("$(dirname "$d")")
+done
+
+if [ ${#DATASETS[@]} -eq 0 ]; then
+    echo "ERROR: No datasets found. Run preprocessing first:"
+    echo "  uv run python preprocess/process_all.py --dataset <name>"
     exit 1
 fi
 
-# Aggregate (build/update cache from samples)
-echo "Aggregating cache..."
-uv run python preprocess/aggregator.py --dataset_dir datasets/pexels
-echo ""
-
-# Count from cache manifest (fast, no NFS scan)
-if [ -f "datasets/pexels/cache/cache_manifest.json" ]; then
-    SAMPLE_COUNT=$(uv run python -c "import json; m=json.load(open('datasets/pexels/cache/cache_manifest.json')); print(m.get('total_samples',0))" 2>/dev/null || echo "0")
+# Aggregate or validate cache for each dataset
+if [ "$SKIP_AGGREGATE" = true ]; then
+    echo "Skip-aggregate: validating caches..."
+    MISSING=()
+    for ds_dir in "${DATASETS[@]}"; do
+        if [ ! -f "$ds_dir/cache/cache_manifest.json" ]; then
+            MISSING+=("$(basename "$ds_dir")")
+        fi
+    done
+    if [ ${#MISSING[@]} -gt 0 ]; then
+        echo "ERROR: --skip-aggregate was set but no cache found for: ${MISSING[*]}"
+        echo ""
+        echo "  Either run aggregation first (without --skip-aggregate),"
+        echo "  or process the missing datasets:"
+        for m in "${MISSING[@]}"; do
+            echo "    uv run python preprocess/process_all.py --dataset $m"
+        done
+        exit 1
+    fi
+    echo "  All ${#DATASETS[@]} dataset(s) have cached data. Skipping aggregation."
+    echo ""
 else
-    SAMPLE_COUNT="0"
-fi
-echo "Bird's Eye"
-echo "  Port:       http://0.0.0.0:${PORT}"
-echo "  Dataset:    pexels"
-echo "  Processed:  ${SAMPLE_COUNT} samples"
-echo ""
-
-if [ "$SAMPLE_COUNT" = "0" ]; then
-    echo "WARNING: No processed samples found. Run: bash process.sh"
-    echo "  Server will start but no images will display."
+    echo "Aggregating cache for ${#DATASETS[@]} dataset(s)..."
+    for ds_dir in "${DATASETS[@]}"; do
+        echo "  $(basename "$ds_dir")..."
+        uv run python preprocess/aggregator.py --dataset_dir "$ds_dir"
+    done
     echo ""
 fi
+
+# Summary
+echo "Bird's Eye"
+echo "  Port:       http://0.0.0.0:${PORT}"
+echo "  Datasets:   ${#DATASETS[@]}"
+for ds_dir in "${DATASETS[@]}"; do
+    ds_name="$(basename "$ds_dir")"
+    cache_file="$ds_dir/cache/cache_manifest.json"
+    if [ -f "$cache_file" ]; then
+        count=$(uv run python -c "import json; print(json.load(open('$cache_file')).get('total_samples',0))" 2>/dev/null || echo "0")
+    else
+        count=0
+    fi
+    echo "    $ds_name: $count samples"
+done
+echo ""
 
 uv run python server/app.py --port "$PORT"

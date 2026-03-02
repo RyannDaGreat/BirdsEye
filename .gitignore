@@ -41,3 +41,5 @@ tests/benchmark_results.json
 .DS_Store
 /tests/test_output
 /user_data
+/datasets/pexels/video_stats.json
+/datasets/pexels/video_metadata.json

@@ -135,13 +135,15 @@
   }
   h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: var(--space-sm); }
   .logo {
-    display: inline-block; width: 3.25em; height: 3.25em; vertical-align: middle;
+    display: inline-block; width: 3.25em; height: 0;
+    overflow: visible;
     background-color: currentColor;
     -webkit-mask-image: url('../assets/birdseye.svg');
     mask-image: url('../assets/birdseye.svg');
-    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-size: 3.25em 3.25em; mask-size: 3.25em 3.25em;
     -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
     -webkit-mask-position: center; mask-position: center;
+    transform: translateY(-0.1em);
   }
   .search-container { flex: 1; display: flex; gap: var(--space-md); align-items: center; }
   .search-wrap { flex: 1; position: relative; display: flex; }

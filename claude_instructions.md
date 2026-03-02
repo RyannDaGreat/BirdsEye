@@ -991,26 +991,17 @@ No shard in the URL. Transparent to the frontend.
 ## run.sh
 
 ```bash
-#!/bin/bash
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$REPO_ROOT"
-
-# Build frontend
-if [ -d "frontend" ]; then
-    echo "Building frontend..."
-    cd frontend
-    [ -d "node_modules" ] || npm install
-    npm run build
-    cd "$REPO_ROOT"
-fi
-
-# Aggregate (build/update cache from samples — incremental, skips seen samples)
-echo "Aggregating cache..."
-uv run python preprocess/aggregator.py --dataset_dir datasets/pexels
-
-# Start server
-uv run python server/app.py --port "${1:-8899}"
+bash run.sh [PORT] [--skip-aggregate]
 ```
+
+**Startup sequence**: install uv → lock deps → build frontend → aggregate → start server.
+
+**`--skip-aggregate` flag**:
+- Without flag (default): aggregates cache for ALL discovered datasets (any `datasets/*/manifest.json`).
+- With flag + all caches exist: skips aggregation entirely for fast startup.
+- With flag + missing cache: errors with actionable instructions listing which datasets need processing.
+
+The startup summary prints per-dataset sample counts from `cache/cache_manifest.json`.
 
 ## process.sh
 
