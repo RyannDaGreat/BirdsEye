@@ -147,7 +147,7 @@
     ctx.fillRect(PAD_LEFT, PAD_TOP, n * CELL, n * CELL);
 
     // Crosshair highlight (even darker)
-    if (hoverRow >= 0 && hoverCol >= 0) {
+    if (hoverRow >= 0 && hoverRow < n && hoverCol >= 0 && hoverCol < n) {
       ctx.fillStyle = 'rgba(0,0,0,0.15)';
       ctx.fillRect(PAD_LEFT, PAD_TOP + hoverRow * CELL, n * CELL, CELL);
       ctx.fillRect(PAD_LEFT + hoverCol * CELL, PAD_TOP, CELL, n * CELL);
@@ -160,10 +160,10 @@
     ctx.drawImage(cacheCanvas, 0, 0, totalW * dpr, totalH * dpr, 0, 0, totalW, totalH);
 
     // Highlighted labels (overdraw on top of cached dim labels)
-    if (hoverRow >= 0 || hoverCol >= 0) {
+    if ((hoverRow >= 0 && hoverRow < n) || (hoverCol >= 0 && hoverCol < n)) {
       ctx.font = '9px ' + getComputedStyle(document.body).fontFamily;
       ctx.fillStyle = '#4a9eff';
-      if (hoverCol >= 0) {
+      if (hoverCol >= 0 && hoverCol < n) {
         ctx.textAlign = 'left';
         ctx.save();
         ctx.translate(PAD_LEFT + hoverCol * CELL + CELL / 2, PAD_TOP - 4);
@@ -171,7 +171,7 @@
         ctx.fillText(fieldLabel(fields[hoverCol].key), 0, 0);
         ctx.restore();
       }
-      if (hoverRow >= 0) {
+      if (hoverRow >= 0 && hoverRow < n) {
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
         ctx.fillText(fieldLabel(fields[hoverRow].key), PAD_LEFT - 4, PAD_TOP + hoverRow * CELL + CELL / 2);
@@ -179,6 +179,8 @@
     }
   }
 
+  // Reset stale hover indices when fields change
+  $: if (n >= 0) { hoverRow = -1; hoverCol = -1; hoverInfo = ''; }
   // Rebuild cache when data or log mode changes
   $: if (fields && n >= 0) buildCache();
   $: if (useLog !== undefined) buildCache();

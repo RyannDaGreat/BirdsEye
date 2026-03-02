@@ -61,7 +61,7 @@
   .active { border-color: var(--accent); }
   .highlighted { border-color: var(--accent); opacity: 1 !important; background: var(--surface2); }
   .toggle-icon {
-    font-size: var(--font-size-xs); flex-shrink: 0; color: var(--text-dim);
+    font-size: calc(var(--font-size-xs) * 1.5); flex-shrink: 0; color: var(--text-dim);
     position: relative; top: var(--icon-fieldbar-shift);
   }
   .toggle-icon.active { color: var(--accent); }

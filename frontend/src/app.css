@@ -51,7 +51,7 @@
   /* Icons */
   --icon-scale: 1.4;
   --icon-valign: -0.25em;
-  --icon-fieldbar-shift: 5px;  /* vertical shift to center iconify icons inside field bars */
+  --icon-fieldbar-shift: 2px;  /* vertical shift to center iconify icons inside field bars */
 
   /* Overlay/glass */
   --glass-bg: rgba(15, 15, 15, 0.92);
