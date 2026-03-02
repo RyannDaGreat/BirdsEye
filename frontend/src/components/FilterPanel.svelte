@@ -9,7 +9,10 @@
   const dispatch = createEventDispatcher();
 
   $: allFields = availableFields($metadataStats);
-  $: fields = $showStats
+  // activeFields controls which histograms are visible, regardless of whether stats panel is open.
+  // Once fields have been toggled (activeFields is not empty), respect the selection always.
+  // Only show all fields when activeFields hasn't been initialized yet (size 0 and stats never opened).
+  $: fields = $activeFields.size > 0
     ? allFields.filter(f => $activeFields.has(f.key))
     : allFields;
 
@@ -39,6 +42,25 @@
     dispatch('search');
   }
 
+  // When activeFields changes, clear filters for any fields that are no longer active.
+  // This prevents hidden fields from silently filtering results.
+  $: {
+    const activeKeys = new Set(fields.map(f => f.key));
+    const f = { ...$filters };
+    let changed = false;
+    for (const k of Object.keys(f)) {
+      const fieldKey = k.startsWith('min_') ? k.slice(4) : k.startsWith('max_') ? k.slice(4) : null;
+      if (fieldKey && !activeKeys.has(fieldKey)) {
+        delete f[k];
+        changed = true;
+      }
+    }
+    if (changed) {
+      $filters = f;
+      dispatch('search');
+    }
+  }
+
   function onThumbChange(e) { $thumbFilter = e.detail; dispatch('search'); }
   function onFavChange(e) { $favFilter = e.detail; dispatch('search'); }
 </script>
@@ -66,12 +88,12 @@
         </div>
       {/each}
     </div>
-  {:else if $showStats}
+  {:else if allFields.length > 0}
     <div class="filter-empty">
       Select fields in the Analysis panel to show filter histograms.
-      <button class="control" on:click={() => $showStats = false}>
+      <button class="control" on:click={() => $showStats = true}>
         <iconify-icon icon="mdi:chart-box-outline" inline></iconify-icon>
-        Hide Statistics
+        {$showStats ? 'Statistics Open' : 'Open Statistics'}
       </button>
     </div>
   {:else}
