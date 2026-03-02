@@ -268,7 +268,7 @@
   .field-list {
     flex: 1; min-height: 0; overflow-y: auto;
     display: flex; flex-direction: column; gap: var(--space-xs);
-    padding-top: var(--space-xs);
+    padding-top: var(--space-xs); padding-right: var(--space-md);
   }
   /* Field bars: full width, values right-aligned, softer active border */
   .field-list :global(.field-bar) { display: flex; width: 100%; }

@@ -60,6 +60,9 @@
   .toggleable:not(.active):hover { opacity: 0.7; }
   .active { border-color: var(--accent); }
   .highlighted { border-color: var(--accent); opacity: 1 !important; background: var(--surface2); }
-  .toggle-icon { font-size: var(--font-size-xxs); flex-shrink: 0; color: var(--text-dim); }
+  .toggle-icon {
+    font-size: var(--font-size-xs); flex-shrink: 0; color: var(--text-dim);
+    position: relative; top: var(--icon-fieldbar-shift);
+  }
   .toggle-icon.active { color: var(--accent); }
 </style>
