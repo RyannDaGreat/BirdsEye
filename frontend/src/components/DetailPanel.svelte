@@ -138,13 +138,7 @@
     position: absolute; left: 0; top: 0; bottom: 0; width: var(--resize-handle-size);
     cursor: ew-resize; background: transparent; z-index: 10; transition: background 0.15s;
   }
-  .resize-handle::after {
-    content: ''; position: absolute; width: var(--space-md); height: var(--space-md);
-    border-radius: 50%; background: var(--text-dim); opacity: 0.4;
-    top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
-  }
   .resize-handle:hover, .resize-handle.dragging { background: var(--accent); }
-  .resize-handle:hover::after, .resize-handle.dragging::after { opacity: 0; }
 
   .close-btn {
     position: absolute; top: var(--space-lg); right: var(--space-lg);

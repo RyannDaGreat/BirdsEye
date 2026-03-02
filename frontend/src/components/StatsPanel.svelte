@@ -158,9 +158,4 @@
     border-bottom: 1px solid var(--border);
   }
   .stats-resize-handle:hover, .stats-resize-handle.dragging { background: var(--accent); }
-  .stats-resize-handle::after {
-    content: ''; position: absolute; width: var(--space-md); height: var(--space-md);
-    border-radius: 50%; background: var(--text-dim); opacity: 0.4;
-    top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
-  }
 </style>

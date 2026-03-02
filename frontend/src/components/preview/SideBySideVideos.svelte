@@ -125,7 +125,7 @@
       <!-- svelte-ignore a11y-media-has-caption -->
       <video src="/thumbnails/{$currentDataset}/{videoName}/{file}"
              bind:this={videoEls[vidIdx]}
-             loop muted controls={!doSync || isMaster} preload="metadata">
+             loop muted autoplay controls={!doSync || isMaster} preload="metadata">
       </video>
     </div>
   {/each}

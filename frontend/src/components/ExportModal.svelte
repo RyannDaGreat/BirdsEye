@@ -11,14 +11,26 @@
     setTimeout(() => { copyLabel = 'Copy to Clipboard'; }, 1500);
   }
 
-  function saveAsFile() {
+  async function saveAsFile() {
     const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'birdseye_export.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+    // Use File System Access API for a real save-as dialog (with path/name picker)
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'birdseye_export.txt',
+        types: [{ description: 'Text files', accept: { 'text/plain': ['.txt'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } else {
+      // Fallback for browsers without File System Access API
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'birdseye_export.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   }
 
   function close() { $showExport = false; }

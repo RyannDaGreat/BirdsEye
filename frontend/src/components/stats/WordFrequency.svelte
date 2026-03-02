@@ -1,5 +1,6 @@
 <!--
-  Word frequency histogram: shows top N most common words in captions.
+  Word frequency histogram: vertical bars showing top N most common words.
+  Words on x-axis (bottom labels), bar height = frequency.
   Supports differential mode (A% - B%) with positive/negative bars.
 -->
 <script>
@@ -26,7 +27,6 @@
       count: w.count,
       isDiff: true,
     }));
-    // Sort by absolute value descending, positives first
     diffs.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
     return diffs.slice(0, 30);
   }
@@ -37,38 +37,51 @@
 </script>
 
 {#if displayWords.length > 0}
-  <div class="word-list">
-    {#each displayWords as w}
-      <div class="word-row">
-        <span class="word-label">{w.word}</span>
-        <div class="bar-container">
-          {#if w.isDiff}
-            {#if w.value >= 0}
-              <div class="bar bar-pos" style="width: {(w.value / maxAbs) * 100}%"></div>
+  <div class="word-chart">
+    <div class="bars-row">
+      {#each displayWords as w}
+        <div class="bar-col">
+          <div class="bar-track">
+            {#if w.isDiff && w.value < 0}
+              <div class="bar bar-neg" style="height: {(Math.abs(w.value) / maxAbs) * 100}%"></div>
             {:else}
-              <div class="bar bar-neg" style="width: {(Math.abs(w.value) / maxAbs) * 100}%"></div>
+              <div class="bar bar-pos" style="height: {(w.value / maxAbs) * 100}%"></div>
             {/if}
-          {:else}
-            <div class="bar bar-pos" style="width: {(w.value / maxAbs) * 100}%"></div>
-          {/if}
+          </div>
         </div>
-        <span class="word-count">{w.isDiff ? (w.value >= 0 ? '+' : '') + (w.value * 100).toFixed(1) + '%' : w.count}</span>
-      </div>
-    {/each}
+      {/each}
+    </div>
+    <div class="labels-row">
+      {#each displayWords as w}
+        <div class="word-label" title="{w.word}: {w.isDiff ? (w.value >= 0 ? '+' : '') + (w.value * 100).toFixed(1) + '%' : w.count}">{w.word}</div>
+      {/each}
+    </div>
   </div>
 {:else}
   <div class="words-empty">No captions available for word frequency analysis.</div>
 {/if}
 
 <style>
-  .word-list { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; height: 100%; }
-  .word-row { display: flex; align-items: center; gap: var(--space-sm); padding: 1px var(--space-sm); }
-  .word-label { width: 80px; text-align: right; font-size: var(--font-size-xs); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
-  .bar-container { flex: 1; height: var(--space-lg); background: var(--bg); border-radius: var(--radius-xs); overflow: hidden; }
-  .bar { height: 100%; border-radius: var(--radius-xs); transition: width 0.2s; }
+  .word-chart { display: flex; flex-direction: column; height: 100%; overflow-x: auto; }
+  .bars-row {
+    flex: 1; display: flex; gap: 1px; align-items: flex-end;
+    padding: var(--space-sm) 0; min-height: 0;
+  }
+  .bar-col { flex: 1; min-width: var(--space-lg); display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .bar-track { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+  .bar { width: 100%; border-radius: var(--radius-xs) var(--radius-xs) 0 0; transition: height 0.2s; }
   .bar-pos { background: var(--accent); opacity: 0.6; }
   .bar-neg { background: var(--selected); opacity: 0.6; }
-  .word-count { width: 50px; font-size: var(--font-size-xxs); color: var(--text-dim); text-align: right; flex-shrink: 0; }
+  .labels-row {
+    display: flex; gap: 1px; flex-shrink: 0;
+    border-top: 1px solid var(--border); padding-top: var(--space-xs);
+  }
+  .word-label {
+    flex: 1; min-width: var(--space-lg);
+    font-size: var(--font-size-xxs); color: var(--text-dim);
+    text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    writing-mode: vertical-rl; transform: rotate(180deg); height: 60px;
+  }
   .words-empty {
     display: flex; align-items: center; justify-content: center;
     height: 100%; color: var(--text-dim); font-size: var(--font-size-control);
