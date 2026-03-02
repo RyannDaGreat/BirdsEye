@@ -94,12 +94,12 @@
     {#if useSprite}
       <div class="thumb-sprite" style="background-image: url({spriteUrl}); background-position: {spritePos}; background-size: {spriteBgSize};"></div>
     {:else}
+      <img src={currentSrc} loading="lazy" alt=""
+           on:load={() => { thumbLoaded = true; }}
+           on:error={() => { thumbError = true; }} />
       {#if !thumbLoaded && !thumbError}
         <div class="thumb-loading"><div class="spinner"></div></div>
       {/if}
-      <img src={currentSrc} loading="lazy" alt="" class:hidden={!thumbLoaded}
-           on:load={() => { thumbLoaded = true; }}
-           on:error={() => { thumbError = true; }} />
       {#if thumbError}
         <div class="thumb-error">failed to load</div>
       {/if}
@@ -144,7 +144,6 @@
     width: 100%; height: 100%; object-fit: contain;
     background: var(--surface2);
   }
-  img.hidden { display: none; }
   .thumb-loading {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     background: var(--bg);
