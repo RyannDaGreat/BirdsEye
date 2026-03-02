@@ -40,6 +40,9 @@
   function selectAll() { $activeFields = new Set(sortedKeys); }
   function selectNone() { $activeFields = new Set(); }
 
+  let splomLog = true;
+  let wordsLog = false;
+
   $: splomFieldsA = sortedKeys
     .filter(key => $activeFields.has(key) && fieldsA[key])
     .map(key => ({ key, values: fieldsA[key] }));
@@ -152,8 +155,14 @@
 
       <!-- Center: Scatterplot Matrix -->
       <div class="col splom-col">
-        <div class="section-label">Scatterplot Matrix</div>
-        <ScatterplotMatrix fields={splomFieldsA} fieldsB={splomFieldsB} />
+        <div class="col-header">
+          <button class="log-toggle" class:active={splomLog} on:click={() => { splomLog = !splomLog; }}
+                  title={splomLog ? 'Switch to linear scale' : 'Switch to log\u2081\u2080 scale'}>
+            {splomLog ? 'Log' : 'Lin'}
+          </button>
+          <div class="section-label">Scatterplot Matrix</div>
+        </div>
+        <ScatterplotMatrix fields={splomFieldsA} fieldsB={splomFieldsB} bind:useLog={splomLog} />
       </div>
 
       <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -162,8 +171,14 @@
       <!-- Right: Words -->
       <div class="col words-col" bind:this={wordsEl}
            style={col3W !== null ? `width: ${col3W}px; flex: none;` : ''}>
-        <div class="section-label">Word Frequency</div>
-        <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} />
+        <div class="col-header">
+          <button class="log-toggle" class:active={wordsLog} on:click={() => { wordsLog = !wordsLog; }}
+                  title={wordsLog ? 'Switch to linear scale' : 'Switch to log\u2081\u2080 scale'}>
+            {wordsLog ? 'Log' : 'Lin'}
+          </button>
+          <div class="section-label">Word Frequency</div>
+        </div>
+        <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} useLog={wordsLog} />
       </div>
     </div>
   </div>
@@ -198,6 +213,17 @@
     font-size: var(--font-size-xxs); text-transform: uppercase;
     letter-spacing: 0.5px; color: var(--accent); flex-shrink: 0;
   }
+  .col-header {
+    display: flex; align-items: center; gap: var(--space-sm);
+    flex-shrink: 0;
+  }
+  .log-toggle {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); font-family: var(--font); font-size: var(--font-size-xxs);
+    padding: 0 var(--space-sm); border-radius: var(--radius-xs);
+    cursor: pointer; line-height: 1.5;
+  }
+  .log-toggle.active { color: var(--accent); border-color: var(--accent); }
   .fields-header {
     display: flex; align-items: center; justify-content: space-between;
   }

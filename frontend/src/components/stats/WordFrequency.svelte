@@ -8,6 +8,7 @@
 
   export let itemsA = [];
   export let itemsB = null;
+  export let useLog = false;
 
   let hoverIdx = -1;
   let tipX = 0;
@@ -52,7 +53,13 @@
   // ~5.5px per character at font-size-xxs (9px) in vertical mode, plus padding
   $: labelH = Math.max(30, maxWordLen * 5.5 + 4);
 
+  function logVal(v) { return v > 0 ? Math.log10(v + 1) : 0; }
+  $: maxAbsLog = nw > 0 ? Math.max(...displayWords.map(w => logVal(Math.abs(w.value)))) : 1;
+
   function barHeight(w) {
+    if (useLog) {
+      return maxAbsLog > 0 ? (logVal(Math.abs(w.value)) / maxAbsLog) * 100 : 0;
+    }
     return maxAbs > 0 ? (Math.abs(w.value) / maxAbs) * 100 : 0;
   }
 

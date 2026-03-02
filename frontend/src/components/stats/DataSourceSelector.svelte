@@ -26,6 +26,11 @@
 </script>
 
 <div class="source-selector">
+  <Popover text="<strong>Data Source</strong><br/>Top row: primary population for statistics.<br/>Bottom row: optional comparison. When set, statistics show the difference (primary minus comparison).<br/><br/>Example: <em>Results − Dataset</em> reveals which values are over- or under-represented in your search results compared to the full dataset.">
+    <button slot="trigger" class="help-icon" title="What does this do?">
+      <iconify-icon icon="mdi:help-circle-outline" inline></iconify-icon>
+    </button>
+  </Popover>
   <div class="tab-rows">
     <div class="tab-row">
       <span class="row-label"></span>
@@ -36,11 +41,6 @@
       <ModeTabRow options={minusOptions} bind:value={$statsSourceB} disabled={disabledSet} compact={true} />
     </div>
   </div>
-  <Popover text="<strong>Data Source</strong><br/>Top row: primary population for statistics.<br/>Bottom row: optional comparison. When set, statistics show the difference (primary minus comparison).<br/><br/>Example: <em>Results − Dataset</em> reveals which values are over- or under-represented in your search results compared to the full dataset.">
-    <button slot="trigger" class="help-icon" title="What does this do?">
-      <iconify-icon icon="mdi:help-circle-outline" inline></iconify-icon>
-    </button>
-  </Popover>
 </div>
 
 <style>

@@ -12,10 +12,11 @@
   export let fields = [];
   export let fieldsB = null;
 
+  export let useLog = true;
+
   let canvas;
   let outerEl;
   let observer;
-  let useLog = true;
   let hoverInfo = '';
   let hoverX = 0;
   let hoverY = 0;
@@ -208,10 +209,6 @@
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <canvas bind:this={canvas} on:mousemove={onCanvasMove} on:mouseleave={onCanvasLeave}></canvas>
     </div>
-    <button class="log-toggle" class:active={useLog} on:click={() => { useLog = !useLog; }}
-            title={useLog ? 'Switch to linear scale' : 'Switch to log₁₀ scale'}>
-      {useLog ? 'Log' : 'Lin'}
-    </button>
     {#if hoverInfo}
       <div class="mouse-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
     {/if}
@@ -224,13 +221,6 @@
   .splom-outer { position: relative; width: 100%; height: 100%; overflow: hidden; }
   .splom-scaled { transform-origin: top left; }
   canvas { display: block; }
-  .log-toggle {
-    position: absolute; top: var(--space-xs); left: var(--space-xs); z-index: 2;
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text-dim); font-family: var(--font); font-size: var(--font-size-xxs);
-    padding: 1px var(--space-sm); border-radius: var(--radius-xs); cursor: pointer;
-  }
-  .log-toggle.active { color: var(--accent); border-color: var(--accent); }
   .splom-empty {
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%; color: var(--text-dim); font-size: var(--font-size-control);
