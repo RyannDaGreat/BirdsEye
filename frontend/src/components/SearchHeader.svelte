@@ -79,7 +79,7 @@
 </script>
 
 <div class="header">
-  <h1><iconify-icon icon="mdi:bird" inline></iconify-icon> Bird's Eye</h1>
+  <h1><span class="logo" title="Bird's Eye"></span> Bird's Eye</h1>
   <ReloadIndicator />
   <select class="control" bind:value={$currentDataset} on:change={() => dispatch('datasetchange')} title="Select dataset to search">
     {#each Object.entries($datasets) as [name, info]}
@@ -133,7 +133,16 @@
     gap: var(--space-xl);
     flex-shrink: 0;
   }
-  h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; }
+  h1 { font-size: var(--space-xl); font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: var(--space-sm); }
+  .logo {
+    display: inline-block; width: 1.3em; height: 1.3em;
+    background-color: currentColor;
+    -webkit-mask-image: url('../assets/birdseye.svg');
+    mask-image: url('../assets/birdseye.svg');
+    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+  }
   .search-container { flex: 1; display: flex; gap: var(--space-md); align-items: center; }
   .search-wrap { flex: 1; position: relative; display: flex; }
   .search-wrap .search-x {
