@@ -28,16 +28,17 @@
 | **Ingest** | The processor that opens the best proxy video once via PyAV and extracts all frame-based artifacts (thumbnails, sprite sheet) plus metadata. Depends on compress. All downstream processors work on these extracted files, never touching the raw video again. |
 | **Enriched** | A search result with `metadata` and `stats` dicts attached by the server before returning to frontend. |
 | **Hull** | Convex hull search. Finds videos nearest to the centroid of selected videos' embeddings. |
-| **Field Bar** | A UI chip showing a numeric field label (dim) and value (accent). Shared component (`FieldBar.svelte`) used in both stats panel and detail panel. Two parts: label (gray, left) and value (blue/accent, right). Only displays numeric fields. In the stats panel, field bars are toggleable (click to include/exclude from scattergram). |
+| **Field Bar** | A UI chip showing a numeric field label (dim) and value (accent). Shared component (`FieldBar.svelte`) used in both stats panel and detail panel. Two parts: label (gray, left) and value (blue/accent, right). Only displays numeric fields. In the stats panel, field bars are toggleable (click to include/exclude from scattergram) — toggleable bars show a small icon (`mdi:check` in accent / `mdi:close` in dim) on the left and `title="Click to toggle"`. Values are right-aligned (`margin-left: auto`), bars width: `max-content` (widest bar, not full column). Active border is 40% opacity accent (not solid). Has `highlighted` prop for cross-component hover highlighting. In the stats panel, field bar tooltips follow the mouse (using `.mouse-tip` class) instead of Popover, because Popover blocks the view of adjacent fields. |
 | **Ternary Filter** | A 3-state UI toggle cycling Any → Only → None. Used for thumbnail and favorites filtering. |
 | **Caption** | AI-generated text description of a video from the raw Pexels metadata. |
 | **FZF** | Fuzzy finder syntax used for text search. Space=AND, `\|`=OR, `!`=NOT, `'quoted'`=exact phrase. |
 | **Search Area** | The main tile grid (`VideoGrid.svelte`) where search results are displayed. Shows video cards in an auto-fill grid. In empty/error states, shows a centered message + BirdsEye logo watermark at 2/3 width, 8% opacity, matching text color. |
 | **Dynamic (modifier)** | A field modifier meaning "computed on-the-fly, not stored on disk." Orthogonal to the numeric/string axis — you can have a dynamic numeric field (e.g., CLIP Score) or a dynamic string field (future). Dynamic fields are ephemeral: they change when the query or context changes. In the sort dropdown, dynamic fields are visually distinguished with a marker prefix (via `dynamicFieldLabel()` pure function). Future: user-defined dynamic fields via an expression editor. |
-| **Scatterplot Matrix** | (abbrev. SPLOM) An N×N grid of pairwise scatter plots for all toggled numeric fields. Diagonal cells show per-field histograms, off-diagonal cells show scatter plots of field[row] vs field[col]. Canvas-rendered for performance. Lives in the statistics panel. Standard statistical visualization for exploring correlations between multiple variables at a glance. |
+| **Scatterplot Matrix** | (abbrev. SPLOM) An N×N grid of pairwise scatter plots for all toggled numeric fields. Diagonal cells show per-field histograms, off-diagonal cells show scatter plots of field[row] vs field[col]. Canvas-rendered for performance with alpha-crop: `findAlphaBounds(canvas, dpr)` pure function in `canvas.js` scans for non-zero alpha pixels to compute a tight bounding box, eliminating wasted space from generous label padding (PAD_LEFT/RIGHT/TOP=150). Mouse coordinates transform through crop offset for hover detection. Lives in the statistics panel. Standard statistical visualization for exploring correlations between multiple variables at a glance. Hovering a cell sets both row and column field keys in `hoveredFields` for cross-component highlighting. |
 | **Preview Button Bar** | Toolbar row above the video in the detail panel. Houses the favorite toggle and future action buttons. Not collapsible (always visible when panel is open). |
 | **Data Source Selector** | Two-row mode tab selector in the statistics panel. Top row (mandatory): Results / Dataset / Selection. Bottom row (optional): Results / Dataset / Selection / None. When bottom ≠ None, all statistics show differential (top minus bottom). |
 | **Quantized Transfer** | Compact data encoding for large numeric arrays. Field values are normalized to 0–255 (uint8) using known min/max from `metadata_stats`, sent as JSON arrays, gzipped. Frontend reconstructs real values: `value = min + (q / 255) * (max - min)`. Used for scattergram dataset-level sampling. |
+| **Cross-Component Field Highlighting** | `hoveredFields` store (Set of field keys) syncs highlighting across stats field bars, filter histograms, and SPLOM. Hovering any field anywhere highlights it everywhere: field bar gets `.highlighted` class, histogram gets accent outline, SPLOM highlights row/column. SPLOM cell hover sets both row and column field keys in `hoveredFields`. |
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! HIGH PRIORITY: THEORY OF MIND IN ALL USER-FACING TEXT                      !!!
@@ -101,6 +102,7 @@ OR the code is wrong and must be fixed. They must NEVER be out of sync.
 - **Icons: Iconify only.** Always use `<iconify-icon>` for icons. Never use Unicode symbols, emoji, or inline SVG for icons. All icon names use `mdi:*` prefix (Material Design Icons via Iconify CDN).
 - **No silent fallbacks.** If something fails, show an error. Never silently degrade.
 - **Every interactive element MUST have a tooltip.**
+- **Separators must touch edges.** Lines/separators must touch adjacent borders with no gaps. Dotted separator in analysis column uses negative margins to extend past column padding.
 - **Modular and pluggable.** New processors = drop a .py file. Zero changes elsewhere.
 - **Messy requirements in, clean code out.**
 - **Talk while working.** Never silently implement.
@@ -119,7 +121,7 @@ A self-contained web application for searching through video datasets using:
 5. **Filterable by any numeric field** — histogram range selectors with draggable handles
 6. **Sortable by any field** — ascending/descending toggle, random shuffle. Dynamic fields (computed on-the-fly, like CLIP Score) appear in the sort dropdown with a marker prefix via `dynamicFieldLabel()`. Currently the only dynamic field is CLIP Score (cosine similarity of query text vs stored CLIP embedding, computed server-side in all search modes when sorting by score).
 7. **Pluggable processing** — add new analyses by dropping a Python file
-8. **Statistics panel** — resizable analytics area with multiple views (Summary, Scattergram, Words). Data source selector chooses what population to analyze (Results, Dataset, Selection) with optional differential (A minus B). Scattergram uses sampled + quantized data transfer for dataset-level views.
+8. **Statistics panel** — three side-by-side resizable columns: Analysis (left), Scatterplot Matrix (center), Word Frequency (right). Draggable vertical split handles between columns (default: equal thirds via `flex: 1`; drag switches to fixed pixel width). Analysis column has a non-scrolling header (Analysis label, DataSourceSelector, dotted separator, Fields header with All/None buttons) and a scrollable field list. Each column has its own Log/Lin toggle button inline with the section label header. Data source selector chooses what population to analyze (Results, Dataset, Selection) with optional differential (A minus B). Scattergram uses sampled + quantized data transfer for dataset-level views.
 
 ## Architecture Overview
 
@@ -629,6 +631,7 @@ Videos can be favorited (hearted). Favorites are stored server-side in `user_dat
 - **Heart on DetailPanel**: Toolbar row below the video with a "Favorite"/"Favorited" button. Scalable for future toolbar actions.
 - **API**: `GET /api/favorites/<dataset>` returns list, `POST /api/favorites/<dataset>` with `{video_name, action: "add"|"remove"}` toggles.
 - **Store**: `favorites` (Set), `favFilter` ('any'|'only'|'none') in stores.js.
+- **Store**: `hoveredFields` (Set of field keys) in stores.js — cross-component field highlighting sync.
 
 ### Sort Behavior
 
@@ -656,27 +659,42 @@ Components in `frontend/src/components/`:
 - `VideoCard.svelte` — thumbnail + sprite hover + favorite heart
 - `DetailPanel.svelte` — inline video detail with metadata, video playback
 - `FilterPanel.svelte` — histogram filters + ternary filters
-- `StatsPanel.svelte` — dataset statistics display
+- `StatsPanel.svelte` — dataset statistics display (three resizable columns)
 - `ExportModal.svelte` — copy selected video names
 - `StatusBar.svelte` — bottom status bar
 - `ReloadIndicator.svelte` — pulsing reload icon when new data available
 - `SyntaxHelp.svelte` — search syntax reference
 - `SettingsPanel.svelte` — stub for future settings
 
+Stats subcomponents in `frontend/src/components/stats/`:
+- `ScatterplotMatrix.svelte` — SPLOM with canvas caching + alpha-crop
+- `WordFrequency.svelte` — CSS vertical bar chart with selectable text labels
+- `DataSourceSelector.svelte` — two-row data source selector with help popover
+
 Widgets in `frontend/src/components/widgets/`:
 - `HistogramFilter.svelte` — range slider with histogram visualization
 - `TernaryFilter.svelte` — 3-state toggle (Any/Only/None)
 - `Popover.svelte` — tooltip/popover component
 - `SafeImage.svelte` — image with error handling
+- `ModeTabRow.svelte` — reusable mode tab row (shared by search header, data source selector)
+- `FieldBar.svelte` — field chip with checkbox icons, highlighted prop, mouse event forwarding
 
 Libraries in `frontend/src/lib/`:
 - `api.js` — API client functions
-- `fields.js` — field metadata and descriptions
+- `canvas.js` — canvas rendering utilities: `drawScatter`, `drawHistogram`, `findAlphaBounds`
+- `fields.js` — field metadata, descriptions, `FIELD_ORDER`, `sortFieldKeys()`
 - `format.js` — formatting utilities
 - `sort.js` — sort logic
 - `stats.js` — statistics helpers
 - `stores.js` — Svelte stores (all reactive state)
 - `url.js` — URL state persistence
+
+### CSS Shared Classes
+
+In `frontend/src/app.css`:
+- `.separator` and `.separator.dotted` — horizontal separators. Dotted separator uses negative margins to extend past column padding so it touches edges.
+- `.mouse-tip` — shared mouse-following tooltip class (used by field bars in stats panel instead of Popover).
+- `::-webkit-scrollbar` height set to `var(--space-md)` for horizontal scrollbar sizing.
 
 ### Everything Else
 
@@ -2165,6 +2183,26 @@ Implementation:
 - `fieldTooltip(key)` in `fields.js` builds the HTML:
   `<strong>Label</strong><br/>Description<br/><span style="opacity:0.5;font-style:italic">Source: Name</span>`
 - Used by DetailPanel, StatsPanel (replaces inline tooltip construction).
+
+### Field Ordering
+
+`FIELD_ORDER` in `fields.js` defines canonical field display order: height, width, duration, num_frames, file_size_mb, fps, clip_std, score, ... `sortFieldKeys()` pure function applies this ordering everywhere (stats panel, SPLOM, filter panel). Fields not in `FIELD_ORDER` appear after ordered fields in alphabetical order.
+
+### Field Summary Format
+
+Field summaries display `min … max` with unicode ellipsis (`\u2026`), no parentheses. In differential mode: `+/-diff Δ`.
+
+### Statistics Panel Empty States
+
+Zero fields can be selected (user controls field visibility via toggleable field bars). One-time initialization: `activeFields` is initialized to all fields on first data load, never auto-refilled after.
+
+- **SPLOM** (no fields selected): "Select fields in the Analysis column to show the scatterplot matrix."
+- **FilterPanel** (no fields selected, stats visible): "Select fields in the Analysis panel to show filter histograms." with a "Hide Statistics" button.
+- **FilterPanel** (stats off, no numeric fields): "No numeric fields available in this dataset."
+
+### Word Frequency Log Scale
+
+Log mode uses `Math.log10(count)` instead of `log10(pct + 1)`. Counts span orders of magnitude (5 to 500+), percentages don't — so log now shows dramatic visual difference.
 
 ### Search Area Empty & Error States
 
