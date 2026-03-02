@@ -40,12 +40,20 @@
             title="Next page"><iconify-icon icon="mdi:chevron-right" inline></iconify-icon></button>
     <select class="input-sm" bind:value={$pageSize} on:change={onPageSizeChange}
             title="Results per page">
+      <option value={1}>1</option>
+      <option value={5}>5</option>
+      <option value={10}>10</option>
+      <option value={25}>25</option>
       <option value={50}>50</option>
       <option value={100}>100</option>
       <option value={200}>200</option>
       <option value={500}>500</option>
       <option value={1000}>1000</option>
       <option value={2000}>2000</option>
+      <option value={2500}>2500</option>
+      <option value={3000}>3000</option>
+      <option value={4000}>4000</option>
+      <option value={5000}>5000</option>
     </select>
     <span class="page-label">per page</span>
   </div>
