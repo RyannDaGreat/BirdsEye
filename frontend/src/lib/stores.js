@@ -17,6 +17,7 @@ export const logScale = writable(true);
 export const hoveredItem = writable(null); // video item being hovered in grid
 export const loading = writable(false);
 export const errorMsg = writable('');
+export const errorHint = writable('');
 
 // --- Panel visibility ---
 export const showFilters = writable(false);

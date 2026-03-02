@@ -12,7 +12,9 @@ async function checkedJson(resp) {
   const data = await resp.json().catch(() => null);
   if (!resp.ok) {
     const msg = (data && data.error) || `${resp.status} ${resp.statusText}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.hint = (data && data.hint) || '';
+    throw err;
   }
   return data;
 }

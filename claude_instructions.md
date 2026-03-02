@@ -35,6 +35,26 @@
 | **Search Area** | The main tile grid (`VideoGrid.svelte`) where search results are displayed. Shows video cards in an auto-fill grid. In empty/error states, shows a centered message + BirdsEye logo watermark at 2/3 width, 8% opacity, matching text color. |
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! HIGH PRIORITY: THEORY OF MIND IN ALL USER-FACING TEXT                      !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+**Every error message, tooltip, label, and hint must be written for a newcomer who
+has never seen this codebase.** This is the psychological principle of Theory of Mind:
+the ability to understand that other people don't share your knowledge.
+
+- **No internal jargon in user-facing text.** Don't say "vector index" or "embedding
+  index" — say what it means: "image similarity search" or "CLIP embeddings".
+- **Be specific, not generic.** If we know the dataset name, the missing processor,
+  and the available alternatives — say all of that. Don't say "may not have been
+  processed" when we know it wasn't. Don't say "try again later" when we know exactly
+  what's wrong.
+- **Every error gets two parts:** (1) a concise technical error (for developers), and
+  (2) a layman's hint explaining what it means and what to do about it, using the
+  specific context (dataset name, search mode, what's available vs. what's missing).
+- **Dynamic, not canned.** Error hints should interpolate real values — the actual
+  dataset name, the actual missing/available features. Not boilerplate.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! NON-NEGOTIABLE: MANIFEST-FIRST DEVELOPMENT                                !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

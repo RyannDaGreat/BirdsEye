@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels } from './lib/stores.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels } from './lib/stores.js';
   import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
@@ -67,6 +67,7 @@
   async function doSearch(resetPage = true) {
     $loading = true;
     $errorMsg = '';
+    $errorHint = '';
     if (resetPage) $currentPage = 1;
 
     const { key: sortKey, direction: sortDir } = parseSortKey($currentSort);
@@ -89,7 +90,8 @@
       } else if (isEmbeddingMode) {
         if (!$searchQuery.trim()) {
           $loading = false;
-          $errorMsg = 'Type a description for semantic search';
+          $errorMsg = 'No search query entered.';
+          $errorHint = 'Type a description of what you\'re looking for — semantic search matches your text against the visual content of each video.';
           $currentResults = [];
           $totalResults = 0;
           return;
@@ -98,7 +100,8 @@
       } else if ($currentMode === 'hull') {
         if ($selectedVideos.size === 0) {
           $loading = false;
-          $errorMsg = 'Select videos first, then use Hull mode';
+          $errorMsg = 'No videos selected for hull search.';
+          $errorHint = 'Hull search finds videos similar to your selection. Click on video thumbnails to select them first, then switch to Hull mode.';
           $currentResults = [];
           $totalResults = 0;
           return;
@@ -108,6 +111,7 @@
 
       if (data.error) {
         $errorMsg = data.error;
+        $errorHint = data.hint || '';
         $currentResults = [];
         $totalResults = 0;
       } else {
@@ -117,6 +121,7 @@
       }
     } catch (e) {
       $errorMsg = e.message;
+      $errorHint = e.hint || '';
       $currentResults = [];
       $totalResults = 0;
     }

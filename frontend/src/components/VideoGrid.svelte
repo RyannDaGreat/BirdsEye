@@ -1,5 +1,5 @@
 <script>
-  import { currentResults, loading, errorMsg } from '../lib/stores.js';
+  import { currentResults, loading, errorMsg, errorHint } from '../lib/stores.js';
   import VideoCard from './VideoCard.svelte';
   import { createEventDispatcher } from 'svelte';
 
@@ -19,6 +19,7 @@
   {:else if $errorMsg}
     <div class="center-state">
       <span class="error-msg">{$errorMsg}</span>
+      {#if $errorHint}<span class="hint-msg">{$errorHint}</span>{/if}
       <div class="watermark"></div>
     </div>
   {:else if showEmpty}
@@ -47,7 +48,8 @@
     padding: 60px; color: var(--text-dim); font-size: var(--font-size-base);
     height: 100%; min-height: 300px;
   }
-  .error-msg { color: var(--selected); margin-bottom: var(--space-xl); }
+  .error-msg { color: var(--selected); margin-bottom: var(--space-sm); }
+  .hint-msg { color: var(--text-dim); font-size: var(--font-size-control); max-width: 500px; text-align: center; line-height: 1.6; margin-bottom: var(--space-xl); }
   .empty-msg { margin-bottom: var(--space-xl); }
   .watermark {
     width: 66%; max-width: 400px; aspect-ratio: 1;

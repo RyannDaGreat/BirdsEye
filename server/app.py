@@ -724,16 +724,30 @@ def create_app(port=8899):
         page, page_size, sort_key, sort_dir, thumb_filter, fav_filter, random_seed = parse_pagination(request.args)
 
         if dataset not in DATASETS:
-            return jsonify({"error": f"Unknown dataset: {dataset}"}), 404
+            ds_mod = dataset_modules.get(dataset)
+            ds_label = ds_mod.human_name if ds_mod else dataset
+            return jsonify({"error": f"Dataset '{ds_label}' is not loaded.",
+                            "hint": f"'{ds_label}' has no processed data on the server. Run the processing pipeline for it first, then restart the server."}), 404
 
         ds = DATASETS[dataset]
+        ds_mod = dataset_modules.get(dataset)
+        ds_label = ds_mod.human_name if ds_mod else dataset
         vi = get_vector_index(ds, index_name)
         if vi is None:
             available = list(ds.get("vector_indices", {}).keys())
-            return jsonify({"error": f"Vector index '{index_name}' not available. Available: {available}"}), 400
+            if not available:
+                hint = (f"'{ds_label}' has no image embeddings — it was not processed with CLIP (or any other embedding model). "
+                        f"Semantic search needs embeddings to compare your text query against images. "
+                        f"Switch to Fuzzy mode to search by text instead.")
+            else:
+                hint = (f"'{ds_label}' does not have {index_name} embeddings, "
+                        f"but it does have: {', '.join(available)}. "
+                        f"Switch to one of those search modes.")
+            return jsonify({"error": f"Semantic search is not available for '{ds_label}'.", "hint": hint}), 400
 
         if index_name not in text_encoders:
-            return jsonify({"error": f"No text encoder for index '{index_name}'"}), 400
+            return jsonify({"error": f"Text encoder for '{index_name}' is not loaded.",
+                            "hint": f"The server needs the {index_name} AI model to understand your search query, but it isn't loaded. The processor that provides it may not be installed."}), 400
 
         query_emb = text_encoders[index_name](query)
         # Return all indexed vectors — pagination handles the windowing
@@ -764,19 +778,34 @@ def create_app(port=8899):
         page, page_size, sort_key, sort_dir, thumb_filter, fav_filter, random_seed = parse_pagination(data)
 
         if dataset not in DATASETS:
-            return jsonify({"error": f"Unknown dataset: {dataset}"}), 404
+            ds_mod = dataset_modules.get(dataset)
+            ds_label = ds_mod.human_name if ds_mod else dataset
+            return jsonify({"error": f"Dataset '{ds_label}' is not loaded.",
+                            "hint": f"'{ds_label}' has no processed data on the server. Run the processing pipeline for it first, then restart the server."}), 404
 
         ds = DATASETS[dataset]
+        ds_mod = dataset_modules.get(dataset)
+        ds_label = ds_mod.human_name if ds_mod else dataset
         vi = get_vector_index(ds, index_name)
         if vi is None:
             available = list(ds.get("vector_indices", {}).keys())
-            return jsonify({"error": f"Vector index '{index_name}' not available. Available: {available}"}), 400
+            if not available:
+                hint = (f"'{ds_label}' has no image embeddings — it was not processed with CLIP (or any other embedding model). "
+                        f"Hull search needs embeddings to find similar videos. "
+                        f"Switch to Fuzzy mode to search by text instead.")
+            else:
+                hint = (f"'{ds_label}' does not have {index_name} embeddings, "
+                        f"but it does have: {', '.join(available)}.")
+            return jsonify({"error": f"Hull search is not available for '{ds_label}'.", "hint": hint}), 400
 
         name_to_idx = {n: i for i, n in enumerate(vi["video_names"])}
         selected_indices = [name_to_idx[n] for n in selected_names if n in name_to_idx]
 
         if not selected_indices:
-            return jsonify({"error": "No valid selected videos found"}), 400
+            n_selected = len(selected_names)
+            n_indexed = len(name_to_idx)
+            return jsonify({"error": f"None of the {n_selected} selected video(s) have {index_name} embeddings.",
+                            "hint": f"The {n_selected} video(s) you selected are not in the {index_name} embedding index ({n_indexed} videos are indexed). These specific videos were not processed with the {index_name} embedding model. Try selecting different videos that have been fully processed."}), 400
 
         selected_embs = vi["embeddings"][selected_indices]
         # Return all indexed vectors — pagination handles the windowing
