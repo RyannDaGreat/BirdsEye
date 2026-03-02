@@ -355,6 +355,25 @@ Six frontend improvements implemented from user feedback:
 - New `/api/export/names` endpoint that runs the same search + filters server-side but returns only video names, no pagination, no enrichment
 - Frontend calls this endpoint for "Export All" instead of reading `$currentResults`
 
+## 2026-03-02 — Reload Indicator Was Fundamentally Broken
+
+### Bug 1: Reload never updated server data
+- The reload button called `window.location.reload()` which just refreshed the page
+- But the server still had OLD data in memory from boot time
+- The `/api/reload/<dataset>` endpoint existed and correctly re-reads cache from disk, but **was never called**
+- **Root cause**: The ReloadIndicator was designed to detect changes (via `/api/status` polling) but its "reload" action was a page refresh, not a server-side cache reload. The two concepts (detect change vs apply change) were never connected.
+
+### Bug 2: Status diff showed nonsensical numbers (69927 → 0)
+- `initialCounts` captured on first poll might have keys that don't exist in later polls (or vice versa)
+- `buildChangeDetails()` iterated over `currentCounts` and compared to `initialCounts[key] || 0` — the `|| 0` fallback created phantom diffs for keys that didn't exist initially
+- **Fix**: Only compare keys present in BOTH snapshots. Skip keys missing from either.
+
+### Fix
+- Reload button now calls `/api/reload/<dataset>` first, waits for response, then dispatches a `reload` event
+- App.svelte handles the event by re-fetching all stores (metadata, histograms, field info, models, favorites) and re-running the search
+- No full page reload needed — UI state (selections, filters, scroll position) is preserved
+- **Lesson**: Detection and action must be connected. Polling for changes is useless if the "fix" button doesn't actually apply the fix.
+
 ## 2026-03-02 — Statistics Panel v1 Issues
 
 ### Scatterplot Matrix Issues (all fixed)

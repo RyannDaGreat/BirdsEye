@@ -130,6 +130,21 @@
     $loading = false;
   }
 
+  async function onReload() {
+    // Server already re-read cache via /api/reload. Now re-fetch all frontend stores.
+    try {
+      $metadataStats = await fetchMetadataStats($currentDataset);
+      $histogramData = await fetchHistograms($currentDataset);
+      $fieldInfo = await fetchFieldInfo();
+      $embeddingModels = await fetchEmbeddingModels();
+      const favList = await fetchFavorites($currentDataset);
+      $favorites = new Set(favList);
+    } catch (e) {
+      console.error('Reload re-fetch failed:', e);
+    }
+    doSearch();
+  }
+
   async function onDatasetChange() {
     try {
       $metadataStats = await fetchMetadataStats($currentDataset);
@@ -196,7 +211,7 @@
   }
 </script>
 
-<SearchHeader on:search={doSearch} on:sort={onSort} on:datasetchange={onDatasetChange} />
+<SearchHeader on:search={doSearch} on:sort={onSort} on:datasetchange={onDatasetChange} on:reload={onReload} />
 <FilterPanel on:search={doSearch} />
 <StatsPanel />
 <SyntaxHelp />

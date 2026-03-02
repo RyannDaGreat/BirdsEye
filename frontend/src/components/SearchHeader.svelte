@@ -80,7 +80,7 @@
 
 <div class="header">
   <h1><span class="logo-wrap"><span class="logo" title="BirdsEye"></span></span> BirdsEye</h1>
-  <ReloadIndicator />
+  <ReloadIndicator on:reload />
   <select class="control" bind:value={$currentDataset} on:change={() => dispatch('datasetchange')} title="Select dataset to search">
     {#each Object.entries($datasets) as [name, info]}
       <option value={name}>{info.human_name || name} ({info.count.toLocaleString()})</option>

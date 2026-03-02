@@ -1,16 +1,20 @@
 <script>
   /**
-   * Polls /api/status periodically. Shows a subtle "new data" indicator
-   * when server data counts have changed since last page load/search.
-   * Renders as an inline header button (same style as other controls).
+   * Polls /api/status periodically. Shows "new data" indicator when
+   * server-side cache has changed since initial snapshot.
+   * Reload calls /api/reload to re-read cache, then dispatches event
+   * so App.svelte can re-fetch all stores without a full page reload.
    */
   import { currentDataset } from '../lib/stores.js';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import Popover from './widgets/Popover.svelte';
+
+  const dispatch = createEventDispatcher();
 
   let initialCounts = null;
   let currentCounts = null;
   let hasNewData = false;
+  let reloading = false;
   let interval;
 
   async function checkStatus() {
@@ -18,26 +22,55 @@
       const resp = await fetch(`/api/status/${$currentDataset}`);
       const data = await resp.json();
       if (!initialCounts) {
-        initialCounts = data;
+        initialCounts = { ...data };
       } else {
         currentCounts = data;
-        hasNewData = JSON.stringify(data) !== JSON.stringify(initialCounts);
+        // Compare only keys that exist in BOTH snapshots to avoid false positives
+        hasNewData = false;
+        for (const key of Object.keys(data)) {
+          if (key in initialCounts && data[key] !== initialCounts[key]) {
+            hasNewData = true;
+            break;
+          }
+        }
       }
     } catch (e) {
-      // Status polling is non-critical; log but don't interrupt
       console.warn('Status poll failed:', e.message);
     }
   }
 
-  function reload() {
+  async function reload() {
+    reloading = true;
+    try {
+      // Tell server to re-read cache from disk
+      const resp = await fetch(`/api/reload/${$currentDataset}`);
+      const result = await resp.json();
+      if (result.status === 'ok') {
+        // Reset our snapshot to the new state
+        initialCounts = null;
+        currentCounts = null;
+        hasNewData = false;
+        await checkStatus();  // capture new baseline
+        // Tell App.svelte to re-fetch all frontend stores
+        dispatch('reload');
+      }
+    } catch (e) {
+      console.error('Reload failed:', e);
+    }
+    reloading = false;
+  }
+
+  // Reset when dataset changes
+  $: {
+    $currentDataset;
     initialCounts = null;
+    currentCounts = null;
     hasNewData = false;
-    window.location.reload();
   }
 
   onMount(() => {
     checkStatus();
-    interval = setInterval(checkStatus, 30000); // poll every 30s
+    interval = setInterval(checkStatus, 30000);
   });
 
   onDestroy(() => clearInterval(interval));
@@ -46,7 +79,8 @@
     if (!initialCounts || !currentCounts) return '';
     const changes = [];
     for (const [key, val] of Object.entries(currentCounts)) {
-      const prev = initialCounts[key] || 0;
+      const prev = initialCounts[key];
+      if (prev === undefined) continue;  // skip keys not in initial snapshot
       if (val !== prev) {
         const diff = val - prev;
         const sign = diff > 0 ? '+' : '';
@@ -57,7 +91,7 @@
   }
 
   $: tooltipText = hasNewData
-    ? '<strong>New data available</strong>' + buildChangeDetails() + '<br/><em>Click to reload</em>'
+    ? '<strong>New data available</strong>' + buildChangeDetails() + '<br/><em>Click to reload server cache</em>'
     : '<strong>Data up to date</strong><br/>Polling every 30s for new samples.';
 </script>
 
@@ -65,7 +99,8 @@
   <Popover text={tooltipText}>
     <span slot="trigger">
       <button class="control reload-btn active-toggle" on:click={reload}
-              title="New data available — click to reload">
+              disabled={reloading}
+              title="New data available — click to reload server cache">
         <iconify-icon icon="mdi:refresh" inline></iconify-icon>
       </button>
     </span>
@@ -73,10 +108,8 @@
 {/if}
 
 <style>
-  .reload-btn {
-    animation: pulse 2s infinite;
-  }
-
+  .reload-btn { animation: pulse 2s infinite; }
+  .reload-btn:disabled { animation: none; opacity: 0.5; }
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
