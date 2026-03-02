@@ -61,6 +61,7 @@
     <button class="control" on:click={exportAll} title="Export all video names from current search results"><iconify-icon icon="mdi:export" inline></iconify-icon> Export All</button>
     {#if selCount > 0}
       <button class="control" on:click={exportSelected} title="Export names of selected videos only"><iconify-icon icon="mdi:export" inline></iconify-icon> Export Selected</button>
+      <button class="control" on:click={() => dispatch('download')} title="Download selected sample directories as a zip file"><iconify-icon icon="mdi:download" inline></iconify-icon> Download ({selCount})</button>
       <button class="control" on:click={clearSelection} title="Deselect all videos"><iconify-icon icon="mdi:close-circle-outline" inline></iconify-icon> Clear</button>
     {/if}
   </div>

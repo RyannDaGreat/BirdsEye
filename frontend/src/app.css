@@ -42,6 +42,9 @@
   --spinner-size: 18px;
   --select-check-size: 22px;
 
+  /* Resize handles */
+  --resize-handle-size: 5px;
+
   /* Clear button */
   --clear-btn-size: 14px;
 
@@ -183,6 +186,12 @@ body {
 
 .clear-btn:hover { color: var(--selected); }
 .clear-btn.dim { opacity: 0.2; }
+
+/* === Resize handle dot indicator (mixin — apply ::after in component scoped CSS) ===
+   Resize handles show a small centered dot to indicate draggability.
+   Since Svelte scopes CSS, each component adds its own .resize-handle::after
+   using these shared values: var(--space-md) size, var(--text-dim) color, 0.4 opacity.
+*/
 
 /* === Icons (Iconify) === */
 iconify-icon { font-size: calc(1em * var(--icon-scale)); vertical-align: var(--icon-valign); }

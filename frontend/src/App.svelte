@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels } from './lib/stores.js';
-  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels } from './lib/api.js';
+  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNames, downloadSamples } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
 
@@ -172,12 +172,24 @@
     $favorites = s;
   }
 
-  function onExport(e) {
+  async function onDownload() {
+    if ($selectedVideos.size === 0) return;
+    await downloadSamples($currentDataset, Array.from($selectedVideos));
+  }
+
+  async function onExport(e) {
     const mode = e.detail.mode;
     if (mode === 'selected') {
       exportText = Array.from($selectedVideos).sort().join('\n');
     } else {
-      exportText = $currentResults.map(r => r.video_name).join('\n');
+      // Fetch ALL matching names from server (not just current page)
+      const { key: sortKey, direction: sortDir } = parseSortKey($currentSort);
+      const names = await exportAllNames($currentDataset, $searchQuery, $currentMode, {
+        sort: sortKey, sortDir,
+        thumbFilter: $thumbFilter, favFilter: $favFilter,
+        filters: $filters, index: $currentMode,
+      });
+      exportText = names.join('\n');
     }
   }
 </script>
@@ -186,7 +198,7 @@
 <FilterPanel on:search={doSearch} />
 <StatsPanel />
 <SyntaxHelp />
-<StatusBar on:export={onExport} on:pagechange={onPageChange} />
+<StatusBar on:export={onExport} on:pagechange={onPageChange} on:download={onDownload} />
 <div class="content-row">
   <VideoGrid on:toggle={onToggle} on:detail={onDetail} on:favorite={onFavorite} />
   <DetailPanel on:favorite={onFavorite} />

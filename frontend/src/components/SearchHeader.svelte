@@ -1,7 +1,7 @@
 <script>
   import { currentDataset, currentMode, currentSort, searchQuery, datasets, metadataStats, showFilters, showStats, showHelp, embeddingModels } from '../lib/stores.js';
   import { availableFields } from '../lib/fields.js';
-  import { parseSortKey } from '../lib/format.js';
+  import { parseSortKey, dynamicFieldLabel } from '../lib/format.js';
   import { createEventDispatcher } from 'svelte';
   import ReloadIndicator from './ReloadIndicator.svelte';
 
@@ -108,7 +108,7 @@
   <select class="control" bind:value={sortField} on:change={onSortFieldChange} title="Sort results by a field">
     <option value="">Unsorted</option>
     <option value="random">Random</option>
-    <option value="score">Score</option>
+    <option value="score">{dynamicFieldLabel('CLIP Score')}</option>
     <option value="name">Name</option>
     {#each dynamicFields as f}
       <option value={f.key}>{f.label}</option>

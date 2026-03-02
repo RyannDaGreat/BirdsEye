@@ -99,6 +99,46 @@ export async function toggleFavorite(dataset, videoName, action) {
   return checkedJson(resp);
 }
 
+/**
+ * Fetch all matching video names for current search (no pagination).
+ * Used by "Export All" to get every result, not just the current page.
+ * Pure function (returns promise).
+ */
+export async function exportAllNames(dataset, query, mode, params) {
+  const filterQS = filtersToQueryString(params.filters);
+  const sortQS = params.sort ? `&sort=${encodeURIComponent(params.sort)}` : '';
+  const sortDirQS = params.sortDir ? `&sort_dir=${params.sortDir}` : '';
+  const thumbQS = params.thumbFilter && params.thumbFilter !== 'any' ? `&thumb_filter=${params.thumbFilter}` : '';
+  const favQS = params.favFilter && params.favFilter !== 'any' ? `&fav_filter=${params.favFilter}` : '';
+  const indexQS = params.index ? `&index=${encodeURIComponent(params.index)}` : '';
+  const resp = await fetch(`/api/export/names?dataset=${dataset}&q=${encodeURIComponent(query)}&mode=${mode}${indexQS}${filterQS}${sortQS}${sortDirQS}${thumbQS}${favQS}`);
+  const data = await checkedJson(resp);
+  return data.names || [];
+}
+
+/**
+ * Download a zip of selected sample directories.
+ * Triggers browser download of a .zip file.
+ */
+export async function downloadSamples(dataset, videoNames) {
+  const resp = await fetch('/api/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataset, video_names: videoNames }),
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+    throw new Error((data && data.error) || `${resp.status} ${resp.statusText}`);
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'birdseye_samples.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Convert filters object to query string params. Pure function. */
 function filtersToQueryString(filters) {
   return Object.entries(filters || {})

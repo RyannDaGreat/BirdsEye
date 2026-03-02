@@ -24,7 +24,9 @@ import os
 import sys
 import numpy as np
 import fire
-from flask import Flask, jsonify, request, send_from_directory
+import io
+import zipfile
+from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 
 # Add parent to path for imports
@@ -825,6 +827,87 @@ def create_app(port=8899):
             "index": index_name,
             "histograms": result_histograms,
         })
+
+    @app.route("/api/export/names")
+    def export_names():
+        """Return all matching video names for the current search (no pagination)."""
+        dataset = request.args.get("dataset", "pexels")
+        query = request.args.get("q", "")
+        mode = request.args.get("mode", "fuzzy")
+        index_name = request.args.get("index", "clip")
+        filters = parse_filters(request.args)
+        _, _, sort_key, sort_dir, thumb_filter, fav_filter, random_seed = parse_pagination(request.args)
+
+        if dataset not in DATASETS:
+            return jsonify({"error": f"Unknown dataset: {dataset}"}), 404
+
+        ds = DATASETS[dataset]
+
+        # Run the same search as the main endpoints
+        if mode == "fuzzy":
+            results = fuzzy_search(ds["entries"], query, limit=len(ds["entries"]))
+            formatted = [{"video_name": r["video_name"], "caption": r["caption"]} for r in results]
+        elif mode == "hull":
+            return jsonify({"error": "Hull export not supported via GET — use selection export"}), 400
+        else:
+            # Embedding search (clip or other)
+            vi = get_vector_index(ds, index_name)
+            if vi is None:
+                return jsonify({"error": f"Vector index '{index_name}' not available"}), 400
+            if index_name not in text_encoders:
+                return jsonify({"error": f"Text encoder for '{index_name}' not loaded"}), 400
+            query_emb = text_encoders[index_name](query)
+            results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]))
+            for r in results:
+                r["caption"] = ds["caption_map"].get(r["video_name"], "")
+            formatted = results
+
+        # Apply filters + ternary filters (but skip pagination, histograms, enrichment)
+        if filters:
+            formatted = apply_filters(formatted, ds["video_metadata"], filters, ds["video_stats"], ds.get("dataset_fields"))
+        fav_set = set(FAVORITES.get(dataset, []))
+        filtered = enrich_results(formatted, ds, thumb_filter=thumb_filter, fav_filter=fav_filter, fav_set=fav_set)
+        sorted_results = sort_results(filtered, sort_key, sort_dir, random_seed)
+
+        names = [r["video_name"] for r in sorted_results]
+        return jsonify({"names": names, "total": len(names)})
+
+    @app.route("/api/download", methods=["POST"])
+    def download_samples():
+        """Zip selected sample directories and stream as download."""
+        data = request.get_json()
+        dataset_name = data.get("dataset", "pexels")
+        video_names = data.get("video_names", [])
+
+        if dataset_name not in DATASETS:
+            return jsonify({"error": f"Unknown dataset: {dataset_name}"}), 404
+
+        MAX_SAMPLES = 50
+        if len(video_names) > MAX_SAMPLES:
+            return jsonify({"error": f"Too many samples ({len(video_names)}). Maximum is {MAX_SAMPLES}."}), 400
+
+        if not video_names:
+            return jsonify({"error": "No video names provided."}), 400
+
+        datasets_dir = os.path.join(REPO_ROOT, "datasets")
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for vname in video_names:
+                sdir = sample_dir(os.path.join(datasets_dir, dataset_name), vname)
+                if not os.path.isdir(sdir):
+                    continue
+                flat_prefix = f"{dataset_name}_{vname}"
+                for fname in os.listdir(sdir):
+                    fpath = os.path.join(sdir, fname)
+                    if os.path.isfile(fpath):
+                        zf.write(fpath, f"{flat_prefix}/{fname}")
+        buf.seek(0)
+        return send_file(
+            buf,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name="birdseye_samples.zip",
+        )
 
     @app.route("/api/video_info/<dataset>/<video_name>")
     def video_info(dataset, video_name):

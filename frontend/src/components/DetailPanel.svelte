@@ -2,6 +2,7 @@
   import { detailData, currentDataset, detailWidth, searchQuery, favorites } from '../lib/stores.js';
   import { formatNumber, collectVideoFields, highlightTerms } from '../lib/format.js';
   import { fieldLabel, fieldTooltip } from '../lib/fields.js';
+  import { downloadSamples } from '../lib/api.js';
   import FieldBar from './widgets/FieldBar.svelte';
   import PreviewSection from './preview/PreviewSection.svelte';
   import SectionRenderer from './preview/SectionRenderer.svelte';
@@ -50,6 +51,10 @@
     if ($detailData) dispatch('favorite', $detailData.video_name);
   }
 
+  async function downloadSingle() {
+    if ($detailData) await downloadSamples($currentDataset, [$detailData.video_name]);
+  }
+
   onMount(async () => {
     try {
       const resp = await fetch('/api/preview_sections');
@@ -72,37 +77,48 @@
 
     <div class="detail-name"><span class="dataset-prefix">{$currentDataset}:</span><span class="video-title">{$detailData.video_name}</span></div>
 
-    <div class="video-container">
-      <video src="/api/video/{$currentDataset}/{$detailData.video_name}"
-             loop autoplay muted controls>
-      </video>
-    </div>
-
-    <!-- Toolbar (scalable for future actions) -->
+    <!-- Preview Button Bar (always visible, not collapsible) -->
     <div class="detail-toolbar">
       <button class="toolbar-btn" class:fav-active={isFav} on:click={toggleFav}
               title={isFav ? 'Remove from favorites' : 'Add to favorites'}>
         <iconify-icon icon={isFav ? 'mdi:heart' : 'mdi:heart-outline'} inline></iconify-icon>
         {isFav ? 'Favorited' : 'Favorite'}
       </button>
+      <button class="toolbar-btn" on:click={downloadSingle}
+              title="Download this sample's files as a zip">
+        <iconify-icon icon="mdi:download" inline></iconify-icon> Download
+      </button>
     </div>
 
-    <div class="metadata">
-      {#each allFields as { key, value }}
-        <FieldBar
-          label={fieldLabel(key)}
-          value={formatNumber(value)}
-          tooltip={fieldTooltip(key)}
-        />
-      {/each}
-    </div>
+    <PreviewSection label="Video" defaultOpen={true}>
+      <div class="video-container">
+        <video src="/api/video/{$currentDataset}/{$detailData.video_name}"
+               loop autoplay muted controls>
+        </video>
+      </div>
+    </PreviewSection>
+
+    <PreviewSection label="Fields" defaultOpen={true}>
+      <div class="metadata">
+        {#each allFields as { key, value }}
+          <FieldBar
+            label={fieldLabel(key)}
+            value={formatNumber(value)}
+            tooltip={fieldTooltip(key)}
+          />
+        {/each}
+      </div>
+    </PreviewSection>
 
     <!-- Plugin-declared preview sections (accordion) -->
     {#each previewSections as section}
       <SectionRenderer {section} videoName={$detailData.video_name} />
     {/each}
 
-    <div class="detail-caption">{@html highlightTerms($detailData.caption || '', $searchQuery)}</div>
+    <PreviewSection label="Caption" defaultOpen={true}>
+      <div class="detail-caption">{@html highlightTerms($detailData.caption || '', $searchQuery)}</div>
+    </PreviewSection>
+
     <div class="detail-path">{$detailData.sample_path || $detailData.source_path || ''}</div>
   </div>
 {/if}
@@ -119,10 +135,16 @@
   }
 
   .resize-handle {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    position: absolute; left: 0; top: 0; bottom: 0; width: var(--resize-handle-size);
     cursor: ew-resize; background: transparent; z-index: 10; transition: background 0.15s;
   }
+  .resize-handle::after {
+    content: ''; position: absolute; width: var(--space-md); height: var(--space-md);
+    border-radius: 50%; background: var(--text-dim); opacity: 0.4;
+    top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
+  }
   .resize-handle:hover, .resize-handle.dragging { background: var(--accent); }
+  .resize-handle:hover::after, .resize-handle.dragging::after { opacity: 0; }
 
   .close-btn {
     position: absolute; top: var(--space-lg); right: var(--space-lg);

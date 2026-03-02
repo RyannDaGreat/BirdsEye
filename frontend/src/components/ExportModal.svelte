@@ -11,6 +11,16 @@
     setTimeout(() => { copyLabel = 'Copy to Clipboard'; }, 1500);
   }
 
+  function saveAsFile() {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'birdseye_export.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function close() { $showExport = false; }
 
   function onOverlayClick(e) {
@@ -32,6 +42,7 @@
       <textarea readonly>{text}</textarea>
       <div class="buttons">
         <button class="control" on:click={copy} title="Copy all video names to clipboard">{copyLabel}</button>
+        <button class="control" on:click={saveAsFile} title="Save video names as a .txt file"><iconify-icon icon="mdi:content-save" inline></iconify-icon> Save as .txt</button>
         <button class="control" on:click={close} title="Close export dialog">Close</button>
       </div>
     </div>
