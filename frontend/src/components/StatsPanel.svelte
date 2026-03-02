@@ -1,41 +1,32 @@
 <!--
-  Statistics panel with view tabs, data source selector, and resizable height.
-  Views: Summary (field bars), Scatterplot Matrix, Words (word frequency).
+  Statistics panel: all three views side by side.
+  Left: Summary (vertical field bar list). Center: Scatterplot Matrix. Right: Words.
 -->
 <script>
-  import { showStats, currentResults, selectedVideos, statsView, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
+  import { showStats, currentResults, selectedVideos, statsSourceA, statsSourceB, activeFields, statsHeight } from '../lib/stores.js';
   import { collectNumericFields, summarize } from '../lib/stats.js';
   import { formatNumber } from '../lib/format.js';
   import { fieldLabel, fieldTooltip } from '../lib/fields.js';
   import FieldBar from './widgets/FieldBar.svelte';
   import ScatterplotMatrix from './stats/ScatterplotMatrix.svelte';
   import WordFrequency from './stats/WordFrequency.svelte';
-  import ModeTabRow from './widgets/ModeTabRow.svelte';
   import DataSourceSelector from './stats/DataSourceSelector.svelte';
 
-  const viewOptions = [
-    { value: 'summary', label: 'Summary' },
-    { value: 'scatterplot', label: 'Scatterplot Matrix' },
-    { value: 'words', label: 'Words' },
-  ];
-
   // --- Data source computation ---
-  // Pass stores as arguments so Svelte tracks them as reactive dependencies
   function getSourceItems(source, results, selected) {
     if (source === 'results') return results;
     if (source === 'selection') return results.filter(r => selected.has(r.video_name));
-    if (source === 'dataset') return results; // TODO: fetch full dataset stats
+    if (source === 'dataset') return results;
     return [];
   }
 
   $: sourceAItems = getSourceItems($statsSourceA, $currentResults, $selectedVideos);
   $: sourceBItems = $statsSourceB !== 'none' ? getSourceItems($statsSourceB, $currentResults, $selectedVideos) : null;
 
-  // --- Summary view data ---
   $: fieldsA = $showStats ? collectNumericFields(sourceAItems) : {};
   $: fieldsB = $showStats && sourceBItems ? collectNumericFields(sourceBItems) : null;
 
-  // --- Active fields initialization ---
+  // Active fields init
   $: {
     const keys = Object.keys(fieldsA);
     if ($activeFields.size === 0 && keys.length > 0) {
@@ -49,7 +40,7 @@
     $activeFields = s;
   }
 
-  // --- Scatterplot Matrix data ---
+  // SPLOM data
   $: splomFieldsA = Object.entries(fieldsA)
     .filter(([key]) => $activeFields.has(key))
     .map(([key, values]) => ({ key, values }));
@@ -72,7 +63,7 @@
     return `${fmt(sA.mean)} (${fmt(sA.min)}..${fmt(sA.max)})`;
   }
 
-  // --- Resize ---
+  // Resize
   let dragging = false;
   let startY = 0;
   let startHeight = 0;
@@ -89,8 +80,7 @@
   function onMouseMove(e) {
     if (!dragging) return;
     const maxH = window.innerHeight * 0.6;
-    const newH = Math.max(100, Math.min(maxH, startHeight + e.clientY - startY));
-    $statsHeight = newH;
+    $statsHeight = Math.max(100, Math.min(maxH, startHeight + e.clientY - startY));
   }
 
   function onMouseUp() {
@@ -106,13 +96,14 @@
 {#if $showStats}
   <div class="stats-panel" style="height: {$statsHeight}px;">
     <div class="stats-header">
-      <ModeTabRow options={viewOptions} bind:value={$statsView} />
       <DataSourceSelector />
     </div>
 
     <div class="stats-body">
-      {#if $statsView === 'summary'}
-        <div class="stats-row">
+      <!-- Left: Summary (vertical list of field bars) -->
+      <div class="summary-col">
+        <div class="section-label">Fields</div>
+        <div class="field-list">
           {#each Object.entries(fieldsA) as [key, vals]}
             <FieldBar label={fieldLabel(key)} value={summaryValue(key)}
                       tooltip={fieldTooltip(key)}
@@ -120,14 +111,20 @@
                       on:click={() => toggleField(key)} />
           {/each}
           {#if Object.keys(fieldsA).length === 0}
-            <FieldBar label="Stats" value="No numeric data available" />
+            <FieldBar label="Stats" value="No numeric data" />
           {/if}
         </div>
-      {:else if $statsView === 'scatterplot'}
+      </div>
+
+      <!-- Center: Scatterplot Matrix -->
+      <div class="splom-col">
         <ScatterplotMatrix fields={splomFieldsA} fieldsB={splomFieldsB} />
-      {:else if $statsView === 'words'}
+      </div>
+
+      <!-- Right: Word Frequency -->
+      <div class="words-col">
         <WordFrequency itemsA={sourceAItems} itemsB={sourceBItems} />
-      {/if}
+      </div>
     </div>
   </div>
   <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -144,15 +141,32 @@
   }
   .stats-header {
     display: flex; gap: var(--space-xl); align-items: flex-start;
-    padding: var(--space-md) var(--space-2xl);
+    padding: var(--space-sm) var(--space-2xl);
     flex-shrink: 0;
   }
   .stats-body {
-    flex: 1; overflow-y: auto;
-    padding: 0 var(--space-2xl) var(--space-md);
-    font-size: var(--font-size-small); color: var(--text-dim);
+    flex: 1; min-height: 0;
+    display: flex; gap: var(--space-md);
+    padding: 0 var(--space-2xl) var(--space-sm);
   }
-  .stats-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+  .summary-col {
+    width: 180px; flex-shrink: 0;
+    overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-xs);
+  }
+  .section-label {
+    font-size: var(--font-size-xxs); text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--accent); flex-shrink: 0;
+  }
+  .field-list {
+    display: flex; flex-direction: column; gap: var(--space-xs);
+  }
+  .splom-col {
+    flex: 1; min-width: 0; min-height: 0;
+  }
+  .words-col {
+    flex: 1; min-width: 0; min-height: 0;
+    overflow-x: auto;
+  }
   .stats-resize-handle {
     height: var(--resize-handle-size); cursor: ns-resize;
     background: transparent; transition: background 0.15s; flex-shrink: 0;

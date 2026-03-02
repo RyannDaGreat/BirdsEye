@@ -1,6 +1,6 @@
 <!--
-  Word frequency histogram: single canvas, vertical bars, 45° labels.
-  Cached rendering with fast hover composite (same pattern as SPLOM).
+  Word frequency histogram: single canvas. Vertical bars, ~67° labels.
+  Y-axis tick marks. Cached rendering with fast hover composite.
 -->
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
@@ -42,12 +42,14 @@
 
   const BAR_W = 6;
   const BAR_GAP = 1;
-  const PAD_TOP = 20;
-  const LABEL_H = 70;
+  const PAD_LEFT = 40;   // Y-axis labels
+  const PAD_TOP = 10;
   const BAR_AREA_H = 120;
+  const LABEL_H = 80;
+  const LABEL_ANGLE = (67.5 / 180) * Math.PI;  // ~67.5 degrees
 
   $: nw = displayWords.length;
-  $: totalW = nw * (BAR_W + BAR_GAP);
+  $: totalW = PAD_LEFT + nw * (BAR_W + BAR_GAP) + 10;
   $: totalH = PAD_TOP + BAR_AREA_H + LABEL_H;
   $: maxAbs = nw > 0 ? Math.max(...displayWords.map(w => Math.abs(w.value))) : 1;
 
@@ -55,6 +57,19 @@
     if (!outerEl || nw === 0) return 1;
     const r = outerEl.getBoundingClientRect();
     return Math.min(1, r.height / totalH);
+  }
+
+  function niceTickCount(maxVal) {
+    if (maxVal <= 0) return [];
+    const ticks = [];
+    // ~4-5 ticks
+    const step = maxVal / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(step)));
+    const niceStep = Math.ceil(step / mag) * mag;
+    for (let v = 0; v <= maxVal * 1.01; v += niceStep) {
+      ticks.push(v);
+    }
+    return ticks;
   }
 
   async function buildCache() {
@@ -67,37 +82,54 @@
     cacheCanvas.height = totalH * dpr;
     const ctx = cacheCanvas.getContext('2d');
     ctx.scale(dpr, dpr);
+    const font = getComputedStyle(document.body).fontFamily;
+
+    const barTop = PAD_TOP;
+    const barBottom = PAD_TOP + BAR_AREA_H;
+
+    // Y-axis ticks
+    const maxPct = maxAbs * 100;
+    const ticks = niceTickCount(maxPct);
+    ctx.font = '7px ' + font;
+    ctx.fillStyle = '#666';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    for (const t of ticks) {
+      const y = barBottom - (t / maxPct) * BAR_AREA_H;
+      if (y < barTop - 2) continue;
+      ctx.fillText(t.toFixed(t < 1 ? 2 : (t < 10 ? 1 : 0)) + '%', PAD_LEFT - 4, y);
+      ctx.beginPath(); ctx.moveTo(PAD_LEFT, y); ctx.lineTo(totalW, y); ctx.stroke();
+    }
+
+    // Baseline
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD_LEFT, barBottom); ctx.lineTo(totalW, barBottom); ctx.stroke();
 
     // Bars
     for (let i = 0; i < nw; i++) {
       const w = displayWords[i];
-      const x = i * (BAR_W + BAR_GAP);
+      const x = PAD_LEFT + i * (BAR_W + BAR_GAP);
       const barH = (Math.abs(w.value) / maxAbs) * BAR_AREA_H;
-      const y = PAD_TOP + BAR_AREA_H - barH;
+      const y = barBottom - barH;
       ctx.fillStyle = (w.isDiff && w.value < 0) ? '#ff6b35' : '#4a9eff';
       ctx.globalAlpha = 0.6;
       ctx.fillRect(x, y, BAR_W, barH);
       ctx.globalAlpha = 1;
     }
 
-    // Baseline
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, PAD_TOP + BAR_AREA_H);
-    ctx.lineTo(totalW, PAD_TOP + BAR_AREA_H);
-    ctx.stroke();
-
-    // Labels (45° diagonal)
-    ctx.font = '8px ' + getComputedStyle(document.body).fontFamily;
+    // Labels (~67.5° angle)
+    ctx.font = '8px ' + font;
     ctx.fillStyle = '#888';
     ctx.textAlign = 'left';
     for (let i = 0; i < nw; i++) {
-      const x = i * (BAR_W + BAR_GAP) + BAR_W / 2;
-      const y = PAD_TOP + BAR_AREA_H + 4;
+      const x = PAD_LEFT + i * (BAR_W + BAR_GAP) + BAR_W / 2;
+      const y = barBottom + 4;
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(Math.PI / 4);
+      ctx.rotate(LABEL_ANGLE);
       ctx.fillText(displayWords[i].word, 0, 0);
       ctx.restore();
     }
@@ -115,25 +147,24 @@
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    // Hover highlight
     if (hoverIdx >= 0) {
-      const x = hoverIdx * (BAR_W + BAR_GAP);
+      const x = PAD_LEFT + hoverIdx * (BAR_W + BAR_GAP);
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
       ctx.fillRect(x - 1, 0, BAR_W + 2, totalH);
     }
 
     ctx.drawImage(cacheCanvas, 0, 0, totalW * dpr, totalH * dpr, 0, 0, totalW, totalH);
 
-    // Highlighted label
     if (hoverIdx >= 0) {
-      const x = hoverIdx * (BAR_W + BAR_GAP) + BAR_W / 2;
+      const font = getComputedStyle(document.body).fontFamily;
+      const x = PAD_LEFT + hoverIdx * (BAR_W + BAR_GAP) + BAR_W / 2;
       const y = PAD_TOP + BAR_AREA_H + 4;
-      ctx.font = '8px ' + getComputedStyle(document.body).fontFamily;
+      ctx.font = '8px ' + font;
       ctx.fillStyle = '#4a9eff';
       ctx.textAlign = 'left';
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(Math.PI / 4);
+      ctx.rotate(LABEL_ANGLE);
       ctx.fillText(displayWords[hoverIdx].word, 0, 0);
       ctx.restore();
     }
@@ -155,14 +186,14 @@
     if (nw === 0) return;
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) / scale;
-    const idx = Math.floor(mx / (BAR_W + BAR_GAP));
+    const idx = Math.floor((mx - PAD_LEFT) / (BAR_W + BAR_GAP));
     hoverIdx = (idx >= 0 && idx < nw) ? idx : -1;
     compositeFrame();
     if (hoverIdx >= 0) {
       const w = displayWords[hoverIdx];
       hoverInfo = w.isDiff
         ? `${w.word}: ${(w.value >= 0 ? '+' : '')}${(w.value * 100).toFixed(2)}%`
-        : `${w.word}: ${w.count} occurrences (${(w.value * 100).toFixed(2)}%)`;
+        : `${w.word}: ${w.count} (${(w.value * 100).toFixed(2)}%)`;
       const outerRect = outerEl.getBoundingClientRect();
       hoverX = e.clientX - outerRect.left + 12;
       hoverY = e.clientY - outerRect.top - 8;
@@ -186,7 +217,7 @@
       <div class="words-tip" style="left: {hoverX}px; top: {hoverY}px;">{hoverInfo}</div>
     {/if}
   {:else}
-    <div class="words-empty">No captions available for word frequency analysis.</div>
+    <div class="words-empty">No captions available.</div>
   {/if}
 </div>
 
