@@ -10,6 +10,8 @@
   const dispatch = createEventDispatcher();
 
   let spriteLoaded = false;
+  let thumbLoaded = false;
+  let thumbError = false;
   let hovering = false;
   let hoverProgress = 0; // 0-1 fraction for progress bar
   let useSprite = false;
@@ -92,8 +94,15 @@
     {#if useSprite}
       <div class="thumb-sprite" style="background-image: url({spriteUrl}); background-position: {spritePos}; background-size: {spriteBgSize};"></div>
     {:else}
-      <img src={currentSrc} loading="lazy" alt=""
-           on:error={(e) => { e.target.style.display = 'none'; e.target.parentNode.insertAdjacentHTML('beforeend', '<div style=\"position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--selected-dim);font-size:var(--font-size-xxs);background:var(--bg);\">failed to load</div>'); }} />
+      {#if !thumbLoaded && !thumbError}
+        <div class="thumb-loading"><div class="spinner"></div></div>
+      {/if}
+      <img src={currentSrc} loading="lazy" alt="" class:hidden={!thumbLoaded}
+           on:load={() => { thumbLoaded = true; }}
+           on:error={() => { thumbError = true; }} />
+      {#if thumbError}
+        <div class="thumb-error">failed to load</div>
+      {/if}
     {/if}
     {#if hovering}
       <div class="progress-bar"><div class="progress-fill" style="width: {hoverProgress * 100}%"></div></div>
@@ -134,6 +143,15 @@
   img {
     width: 100%; height: 100%; object-fit: contain;
     background: var(--surface2);
+  }
+  img.hidden { display: none; }
+  .thumb-loading {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+  }
+  .thumb-error {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--selected-dim); font-size: var(--font-size-xxs); background: var(--bg);
   }
 
   .progress-bar {
