@@ -1999,32 +1999,57 @@ section is contributed by a processor, dataset, or built-in feature. This enable
 datasets like OpenHumanVid to show pose skeletons, depth maps, etc. alongside the
 standard video player and thumbnails.
 
-**Architecture (Option 3: Hybrid generic + custom renderers):**
+**Architecture: Plugin-declared preview sections**
+
+Preview sections are NOT hardcoded to specific processors or artifacts. Each plugin
+(processor or dataset) can declare zero or more preview sections. The preview pane
+renders them as a stack of collapsible accordion items.
+
+A preview section is generic: it has a **type** (from a library of renderers) and
+**arguments** (which artifacts/fields to use). The renderer library is a set of
+Svelte components that know how to display certain patterns:
 
 ```
 frontend/src/components/preview/
-  PreviewSection.svelte     — collapsible wrapper (label, expand/collapse toggle)
-  ImagePreview.svelte       — renders any image artifact
-  VideoPreview.svelte       — video player
-  JsonPreview.svelte        — collapsible JSON tree view
-  SkeletonPreview.svelte    — skeleton overlay on image (custom for pose data)
-  FieldBarsPreview.svelte   — metadata field bars
+  PreviewSection.svelte       — collapsible accordion wrapper
+  SideBySideImages.svelte     — N images side by side with labels
+  SideBySideVideos.svelte     — N videos side by side with labels
+  SingleImage.svelte          — one image, full width
+  SingleVideo.svelte          — one video with controls
+  FieldBarsSection.svelte     — a group of field bars
 ```
 
-- Each artifact type ("image", "video", "data", "skeleton") maps to a renderer.
-- Generic renderers for common types (image → `<img>`, video → `<video>`, JSON → tree).
-- Custom renderers for special types (skeleton overlay, depth colormap).
-- Preview pane iterates over sections and renders the appropriate component.
-- Sections are collapsible so the pane doesn't get overwhelming.
-- Adding a new visualization = drop a Svelte file + map the artifact type to it.
+These renderers are generic — not tied to any processor. A processor or dataset
+declares which renderer to use and what arguments to pass. For example:
 
-**Section ordering:** Priority-based. Built-in (video, fields, frames) first, then
-processor artifacts, then dataset artifacts. Each declares a priority number.
+```python
+# In compress processor:
+preview_sections = [
+    {"type": "side_by_side_videos", "label": "Compression Ladder",
+     "args": {"files": ["compress_144p.mp4", "compress_480p.mp4", "compress_1080p.mp4"]}},
+]
 
-**Compression cascade section:** The compress processor produces 6 resolution tiers
-(144p–1080p). These could be shown as a collapsible accordion section in the preview
-pane, alongside the existing first/middle/last thumbnails. Useful for comparing
-quality across resolutions.
+# In ingest processor:
+preview_sections = [
+    {"type": "side_by_side_images", "label": "Frames",
+     "args": {"files": ["thumb_first.jpg", "thumb_middle.jpg", "thumb_last.jpg"],
+              "labels": ["First", "Middle", "Last"]}},
+]
+```
+
+The frontend fetches preview section declarations from the API and renders them.
+All sections are collapsible (accordion style). Priority ordering determines default
+order. Built-in sections (video player, fields, caption) come first.
+
+**Key principle:** The preview pane has NO knowledge of specific processors or
+artifacts. It just knows how to render generic section types. Processors and datasets
+declare what they want shown. Adding a new visualization = drop a Svelte renderer
+file, map a type string to it, and have a plugin declare a section with that type.
+
+**Not per-artifact.** Preview sections are not declared per artifact. They are declared
+per plugin, and a plugin combines its artifacts/fields into sections however it sees fit.
+Given a sample directory, the plugin says "here are my preview sections and what goes in
+them." This is more flexible than per-artifact rendering.
 
 ### Upcoming: Download Selected Samples
 
