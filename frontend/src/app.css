@@ -208,7 +208,7 @@ body {
 iconify-icon { font-size: calc(1em * var(--icon-scale)); vertical-align: var(--icon-valign); }
 
 /* === Scrollbar === */
-::-webkit-scrollbar { width: var(--space-md); }
+::-webkit-scrollbar { width: var(--space-md); height: var(--space-md); }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }

@@ -86,7 +86,6 @@
   .words-scroll {
     flex: 1; min-height: 0;
     overflow-x: auto; overflow-y: hidden;
-    padding: var(--space-sm) var(--space-md) 0;
   }
   .bars-row {
     display: flex; align-items: flex-end;
