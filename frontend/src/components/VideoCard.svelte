@@ -1,5 +1,6 @@
 <script>
-  import { currentDataset, selectedVideos, currentSort, searchQuery, appConfig, hoveredItem, favorites } from '../lib/stores.js';
+  import { currentDataset, selectedVideos, currentSort, searchQuery, appConfig, hoveredItem, hoveredWord, favorites } from '../lib/stores.js';
+  import { captionWords } from '../lib/stats.js';
   import { getNestedValue } from '../lib/sort.js';
   import { fieldLabel } from '../lib/fields.js';
   import { formatNumber, parseSortKey, spritePosition, mouseToFrameIndex, truncate, highlightTerms } from '../lib/format.js';
@@ -78,6 +79,8 @@
   }
 
   $: isFav = $favorites.has(item.video_name);
+  $: itemWords = captionWords(item.caption);
+  $: wordHighlighted = $hoveredWord ? itemWords.has($hoveredWord) : false;
 
   function onClick(e) { e.preventDefault(); dispatch('toggle', item.video_name); }
   function onDblClick(e) { e.preventDefault(); dispatch('detail', item); }
@@ -86,7 +89,7 @@
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
-<div class="card" class:selected={isSelected}
+<div class="card" class:selected={isSelected} class:word-highlighted={wordHighlighted}
      on:click={onClick} on:dblclick={onDblClick} on:contextmenu={onContext}
      on:mouseenter={() => $hoveredItem = item} on:mouseleave={() => $hoveredItem = null}>
   <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -131,6 +134,7 @@
   }
   .card:hover { border-color: var(--accent); }
   .card.selected { border-color: var(--selected); box-shadow: 0 0 var(--space-lg) rgba(255, 107, 53, 0.3); }
+  .card.word-highlighted { border-color: var(--success); box-shadow: 0 0 var(--space-lg) rgba(78, 205, 196, 0.3); }
 
   .thumb-container {
     position: relative; width: 100%; aspect-ratio: 16/9;

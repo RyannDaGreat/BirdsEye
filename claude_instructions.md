@@ -692,6 +692,20 @@ Videos can be favorited (hearted). Favorites are stored server-side in `user_dat
 - **API**: `GET /api/favorites/<dataset>` returns list, `POST /api/favorites/<dataset>` with `{video_name, action: "add"|"remove"}` toggles.
 - **Store**: `favorites` (Set), `favFilter` ('any'|'only'|'none') in stores.js.
 - **Store**: `hoveredFields` (Set of field keys) in stores.js — cross-component field highlighting sync.
+- **Store**: `hoveredItem` (object | null) in stores.js — video item being hovered in grid. Used by HistogramFilter for white indicator lines.
+- **Store**: `hoveredWord` (string | null) in stores.js — word being hovered in WordFrequency chart.
+
+### Cross-Component Highlighting
+
+Three bidirectional couplings between views:
+
+1. **SPLOM ↔ Histograms**: Hovering a SPLOM cell sets `hoveredFields` (1-2 field keys). Histograms with matching keys get `highlighted` class (full opacity). Conversely, hovering a histogram or field bar sets `hoveredFields` and SPLOM highlights the corresponding row/col.
+
+2. **Video Card → Word Frequency**: Hovering a VideoCard sets `hoveredItem`. WordFrequency reads `$hoveredItem.caption`, extracts content words via `captionWords()`, and applies `.caption-match` class (white bars + white labels) to matching word bars.
+
+3. **Word Frequency → Video Cards**: Hovering a word bar sets `hoveredWord`. Each VideoCard computes `itemWords = captionWords(item.caption)` (cached per item), checks `itemWords.has($hoveredWord)`, and applies `.word-highlighted` class (success-colored border + glow).
+
+Key helper: `captionWords(caption)` in stats.js — extracts lowercase content words (no stop words, length > 1) as a Set. Uses same tokenization as `wordFrequencies()` for consistent matching.
 
 ### Sort Behavior
 

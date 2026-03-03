@@ -15,6 +15,7 @@ export const appConfig = writable({ sprite_cols: 5, sprite_rows: 5, sprite_frame
 export const embeddingModels = writable({});  // {prefix: {name, description, dim}}
 export const logScale = writable(true);
 export const hoveredItem = writable(null); // video item being hovered in grid
+export const hoveredWord = writable(null); // word being hovered in word frequency chart
 export const loading = writable(false);
 export const searchStatus = writable('');  // SSE status text during search (e.g., "Loading GVE model...")
 export const errorMsg = writable('');

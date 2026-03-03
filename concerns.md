@@ -651,3 +651,21 @@ Score field metadata belongs in the processor that produces the embeddings, not 
 ### Bug: `__pycache__` detected as dataset
 - **Problem**: Dataset loader scans `datasets/` with `os.listdir` and tries every subdirectory. Python's `__pycache__/` passed the `os.path.isdir` check, hit the "no manifest" skip message: `Skipping dataset '__pycache__': no manifest at ...`. Harmless but ugly.
 - **Fix**: Added `if name.startswith('.') or name.startswith('__'): continue` before the `isdir` check in `create_app()`. Filters out `__pycache__` and hidden dirs before they're ever considered as datasets.
+
+## 2026-03-03 — Cross-Component Highlighting
+
+### Progress
+- Added three bidirectional highlighting couplings between views:
+  1. **SPLOM ↔ Histograms**: Already working via `hoveredFields` store. SPLOM sets 1-2 field keys on cell hover, FilterPanel passes `highlighted` prop to matching HistogramFilters.
+  2. **Video Card → Word Frequency**: New. Hovering a VideoCard sets `hoveredItem` (existing). WordFrequency now reads `$hoveredItem.caption`, extracts content words via `captionWords()`, applies `.caption-match` class (white bars + labels).
+  3. **Word Frequency → Video Cards**: New. Added `hoveredWord` store. WordFrequency sets it on bar mouseenter/leave. VideoCard caches `itemWords = captionWords(item.caption)`, checks `itemWords.has($hoveredWord)`, applies `.word-highlighted` class (success-teal border + glow).
+
+### New helper: `captionWords()` in stats.js
+- Extracts lowercase content words (no stop words, length > 1) as a Set.
+- Uses same tokenization regex as `wordFrequencies()` for consistent matching.
+- Cached per item in VideoCard (one Set creation per item, not per hover change).
+
+### Design decisions
+- Word-highlighted cards use `--success` color (teal) to differentiate from selected (orange) and hovered (accent blue).
+- Caption-matched word frequency bars use white to stand out from both accent and selected colors.
+- `hoveredWord` is a simple string store (not a Set) since only one word can be hovered at a time.

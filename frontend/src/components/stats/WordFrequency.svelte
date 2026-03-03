@@ -4,8 +4,9 @@
   Differential mode shows positive (accent) and negative (selected) bars.
 -->
 <script>
-  import { wordFrequencies } from '../../lib/stats.js';
+  import { wordFrequencies, captionWords } from '../../lib/stats.js';
   import { tipPos } from '../../lib/format.js';
+  import { hoveredItem, hoveredWord } from '../../lib/stores.js';
 
   export let itemsA = [];
   export let itemsB = null;
@@ -19,8 +20,12 @@
   let tipY = 0;
   let outerEl;
 
+  // Words from hovered video card's caption (for highlighting matching bars)
+  $: hoveredCaptionWords = $hoveredItem ? captionWords($hoveredItem.caption) : new Set();
+
   function onColEnter(i, e) {
     hoverIdx = i;
+    $hoveredWord = displayWords[i]?.word || null;
     updateTip(e);
   }
   function onColMove(e) { updateTip(e); }
@@ -87,9 +92,10 @@
         {#each displayWords as w, i}
           <!-- svelte-ignore a11y-no-static-element-interactions -->
           <div class="bar-col" class:hovered={hoverIdx === i}
+               class:caption-match={hoveredCaptionWords.has(w.word)}
                on:mouseenter={(e) => onColEnter(i, e)}
                on:mousemove={onColMove}
-               on:mouseleave={() => hoverIdx = -1}>
+               on:mouseleave={() => { hoverIdx = -1; $hoveredWord = null; }}>
             <div class="bar-track">
               <div class="bar-fill" style="height: {barHeights[i]}%; background: {barColor(w)};"
                    title={tooltip(w)}></div>
@@ -144,6 +150,8 @@
     flex-shrink: 0; overflow: hidden;
   }
   .bar-col.hovered .bar-label { color: var(--accent); }
+  .bar-col.caption-match .bar-fill { opacity: 1; background: #fff !important; }
+  .bar-col.caption-match .bar-label { color: #fff; }
   .words-empty {
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%; color: var(--text-dim); font-size: var(--font-size-control);

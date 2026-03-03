@@ -41,6 +41,25 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
+ * Extract content words from a caption string (lowercase, no stop words, length > 1).
+ * Uses the same tokenization as wordFrequencies for consistent matching.
+ * Pure function.
+ *
+ * @param {string} caption - raw caption text
+ * @returns {Set<string>} set of lowercase content words
+ *
+ * >>> [...captionWords('A beautiful sunset over the ocean')].sort()
+ * ['beautiful', 'ocean', 'sunset']
+ */
+export function captionWords(caption) {
+  if (!caption) return new Set();
+  const words = caption.toLowerCase()
+    .split(/[\s,.;:!?'"()\[\]{}\-/\\]+/)
+    .filter(w => w.length > 1 && !STOP_WORDS.has(w));
+  return new Set(words);
+}
+
+/**
  * Compute word frequencies from caption text in result items.
  * Returns top N words sorted by frequency, excluding stop words.
  * Pure function.
