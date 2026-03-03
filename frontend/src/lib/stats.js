@@ -70,20 +70,22 @@ export function captionWords(caption) {
  */
 export function wordFrequencies(items, topN = 30) {
   const counts = {};
-  let total = 0;
+  const videosWith = {};  // how many videos contain each word
+  const nItems = items.length;
   for (const item of items) {
     const caption = (item.caption || '').toLowerCase();
     const words = caption.split(/[\s,.;:!?'"()\[\]{}\-/\\]+/).filter(w => w.length > 1 && !STOP_WORDS.has(w));
+    const seen = new Set();
     for (const w of words) {
       counts[w] = (counts[w] || 0) + 1;
-      total++;
+      if (!seen.has(w)) { videosWith[w] = (videosWith[w] || 0) + 1; seen.add(w); }
     }
   }
-  if (total === 0) return [];
+  if (nItems === 0) return [];
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, topN)
-    .map(([word, count]) => ({ word, count, pct: count / total }));
+    .map(([word, count]) => ({ word, count, pct: (videosWith[word] || 0) / nItems }));
 }
 
 /**
