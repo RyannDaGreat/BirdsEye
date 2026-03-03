@@ -119,7 +119,7 @@ A self-contained web application for searching through video datasets using:
 1. **FZF-style fuzzy text search** through video captions
 2. **Semantic search** through pre-computed image embeddings via FAISS (CLIP ViT-B/32 512-dim, SigLIP SO400M 1152-dim — selectable in UI)
 3. **Selection-based refinement** — select videos, then search within / around them (convex hull)
-4. **Export** — copy or download video names as newline-separated text. "Export All" must export ALL matching results from the current search (not just the visible page). "Export Selected" exports only manually selected videos. Both modes support copy-to-clipboard and download-as-file (`.txt`, browser save-as dialog, floppy disk icon `mdi:content-save`).
+4. **Export** — full-featured export modal (85vh × 80vw, fixed size) with four bands: header, controls, content, footer. Two content modes: **Names** (video names only) and **Paths** (sample directory paths with optional artifact suffix). Two format modes: **Lines** (one per line) and **JSON** (pretty-printed array). Artifact dropdown (visible in Paths mode) populated from processor plugin declarations — includes Folder (default), origins.json, video.mp4, plus all image/data artifacts from `$fieldInfo`. Export buttons: Copy (clipboard), Save as .txt/.json (browser save-as dialog), Download (zips selected artifacts). "Export All" fetches ALL matching results from the current search (not just the visible page). "Export Selected" resolves only manually selected videos via POST `/api/export/resolve`. The Download button in the export modal uses the same shared `DownloadButton` component as the StatusBar — when artifact is "Folder" it downloads full sample directories, when a specific file is selected (e.g., video.mp4) it downloads just those files flat in the zip (e.g., `pexels_19012581.mp4`). This avoids downloading folders where every subfolder contains a single identically-named file. Download button shows estimated file size in human-readable format (via `humanFilesize()`).
 5. **Filterable by any numeric field** — histogram range selectors with draggable handles
 6. **Sortable by any field** — ascending/descending toggle, random shuffle. Dynamic fields (computed on-the-fly, like CLIP Score) appear everywhere with ✦ marker prefix via `fieldLabel()`. Currently the only dynamic field is CLIP Score (cosine similarity of query text vs stored CLIP embedding, computed server-side). Dynamic fields appear in sort dropdown, field bars, filter histograms, SPLOM, and detail panel — they are first-class citizens.
 7. **Pluggable processing** — add new analyses by dropping a Python file
@@ -720,7 +720,7 @@ Components in `frontend/src/components/`:
 - `DetailPanel.svelte` — inline video detail with metadata, video playback
 - `FilterPanel.svelte` — histogram filters + ternary filters
 - `StatsPanel.svelte` — dataset statistics display (three resizable columns)
-- `ExportModal.svelte` — copy selected video names
+- `ExportModal.svelte` — export modal: Names/Paths × Lines/JSON with artifact dropdown + download
 - `StatusBar.svelte` — bottom status bar
 - `ReloadIndicator.svelte` — pulsing reload icon when new data available; spinning animation while reload is in progress
 - `SyntaxHelp.svelte` — search syntax reference
@@ -738,6 +738,7 @@ Widgets in `frontend/src/components/widgets/`:
 - `SafeImage.svelte` — image with error handling
 - `ModeTabRow.svelte` — reusable mode tab row (shared by search header, data source selector)
 - `FieldBar.svelte` — field chip with checkbox icons, highlighted prop, mouse event forwarding
+- `DownloadButton.svelte` — self-contained download button with size estimate, spinner, status. Props: dataset, videoNames, artifact, compact
 
 Libraries in `frontend/src/lib/`:
 - `api.js` — API client functions
@@ -2351,24 +2352,29 @@ frontend was just throwing away the body and showing the HTTP status line instea
 The logo watermark uses the same CSS mask-image technique as the header logo but
 inherits `currentColor` from the text (dim gray), not the accent color.
 
-### Upcoming: Download Selected Samples
+### Download System
 
-**Feature:** A "Download Selected" button that zips up sample directories for manually
-selected videos and serves as a browser download.
+**Shared `DownloadButton.svelte` component** — used in StatusBar, ExportModal, and DetailPanel.
+Self-contained: fetches size estimate, shows spinner + status, triggers zip download. No parent
+event dispatch needed. Props: `dataset`, `videoNames`, `artifact` (null = full folders), `compact`.
 
-**Backend:** `POST /api/download` — accepts `{dataset, video_names: [...]}`. Hard cap
-at 50 samples (safety limit). Creates a temp zip of sample directories with flat
-structure (no shard nesting): `dataset_videoname/thumb_middle.jpg`, etc. Streams back
-with `Content-Disposition: attachment; filename="samples.zip"`.
+**Backend:**
+- `POST /api/download` — accepts `{dataset, video_names: [...], artifact?: string}`. Hard cap
+  at 50 samples. When `artifact` is null, zips full sample directories with flat structure
+  (`dataset_videoname/thumb_middle.jpg`). When `artifact` is a filename (e.g., `"video.mp4"`),
+  zips only that file from each sample, flat-named (`dataset_videoname.mp4`) — avoids folders
+  containing a single identically-named file.
+- `POST /api/download/size` — same params, returns `{total_bytes, file_count}` for size estimation.
 
 **Frontend:**
-- Download button in toolbar (near Export): `<iconify-icon icon="mdi:download">`.
-  Shows count: "Download (3)". Only enabled when `selectedVideos.size > 0`.
-- Per-sample download button in detail panel: downloads just that one sample.
-- NO "download all results" option — only manually selected samples.
-
-**Helper:** Pure function `zip_sample_dirs(sample_paths) -> bytes` in a utility module.
-The endpoint calls it and streams the result. Zips the entire sample directory as-is.
+- `downloadSamples(dataset, videoNames, artifact?, statusStore?)` in api.js — accepts optional
+  artifact and status store. Falls back to global `downloadStatus` store.
+- `fetchDownloadSize(dataset, videoNames, artifact?)` — size estimation for the download button.
+- `humanFilesize()` in format.js formats byte counts for display (1024-based, matches rp).
+- StatusBar: `DownloadButton` with no artifact (full folder download). Visible when selection exists.
+- ExportModal: `DownloadButton` with artifact from dropdown. Folder → full dirs, specific file → just that file.
+- DetailPanel: inline download button for single sample (uses `downloadSamples` directly).
+- NO "download all results" option — only manually selected samples or export modal items.
 
 ### Upcoming: Multi-Dataset UI
 

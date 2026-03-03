@@ -1,6 +1,7 @@
 <script>
-  import { showExport, fieldInfo } from '../lib/stores.js';
+  import { showExport, fieldInfo, currentDataset } from '../lib/stores.js';
   import ModeTabRow from './widgets/ModeTabRow.svelte';
+  import DownloadButton from './widgets/DownloadButton.svelte';
 
   export let names = [];
   export let paths = [];
@@ -42,6 +43,8 @@
   $: displayText = formatMode === 'lines'
     ? items.join('\n')
     : JSON.stringify(items, null, 2);
+
+  $: downloadArtifact = (contentMode === 'paths' && artifact !== 'Folder') ? artifact : null;
 
   $: fileExt = formatMode === 'json' ? '.json' : '.txt';
   $: mimeType = formatMode === 'json' ? 'application/json' : 'text/plain';
@@ -133,6 +136,7 @@
 
       <!-- FOOTER -->
       <div class="footer">
+        <DownloadButton dataset={$currentDataset} videoNames={names} artifact={downloadArtifact} compact />
         <button class="control" on:click={copy} title="Copy to clipboard">
           <iconify-icon icon="mdi:content-copy" inline></iconify-icon> {copyLabel}
         </button>

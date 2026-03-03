@@ -1,11 +1,12 @@
 <script>
-  import { selectedVideos, datasetInfo, showExport, pageSize, currentPage, totalResults, downloadStatus } from '../lib/stores.js';
+  import { selectedVideos, datasetInfo, showExport, pageSize, currentPage, totalResults, currentDataset } from '../lib/stores.js';
   import { createEventDispatcher } from 'svelte';
-  import Popover from './widgets/Popover.svelte';
+  import DownloadButton from './widgets/DownloadButton.svelte';
 
   const dispatch = createEventDispatcher();
 
-  $: selCount = $selectedVideos.size;
+  $: selectedArr = Array.from($selectedVideos);
+  $: selCount = selectedArr.length;
   $: total = $totalResults;
   $: totalPages = Math.max(1, Math.ceil(total / $pageSize));
   $: if ($currentPage > totalPages) $currentPage = totalPages;
@@ -62,14 +63,7 @@
     <button class="control" on:click={exportAll} title="Export all video names from current search results"><iconify-icon icon="mdi:export" inline></iconify-icon> Export All</button>
     {#if selCount > 0}
       <button class="control" on:click={exportSelected} title="Export names of selected videos only"><iconify-icon icon="mdi:export" inline></iconify-icon> Export Selected</button>
-      <Popover text={$downloadStatus ? `<strong>${$downloadStatus}</strong>` : `<strong>Download ${selCount} sample${selCount > 1 ? 's' : ''} as zip</strong>`}>
-        <span slot="trigger">
-          <button class="control" on:click={() => dispatch('download')} disabled={!!$downloadStatus}
-                  title={$downloadStatus || 'Download selected sample directories as a zip file'}>
-            <iconify-icon icon="mdi:download" inline class:icon-spin={!!$downloadStatus}></iconify-icon> Download ({selCount})
-          </button>
-        </span>
-      </Popover>
+      <DownloadButton dataset={$currentDataset} videoNames={selectedArr} />
       <button class="control" on:click={clearSelection} title="Deselect all videos"><iconify-icon icon="mdi:close-circle-outline" inline></iconify-icon> Clear</button>
     {/if}
   </div>

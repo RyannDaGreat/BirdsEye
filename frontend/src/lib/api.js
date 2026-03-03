@@ -2,6 +2,7 @@
  * API client for the search backend.
  * All functions are pure (return promises, no side effects on stores).
  */
+import { downloadStatus } from './stores.js';
 
 /**
  * Parse a fetch response as JSON. If the server returned an error status,
@@ -199,25 +200,32 @@ export async function exportResolve(dataset, videoNames) {
 }
 
 /**
- * Download a zip of selected sample directories.
+ * Download a zip of selected sample directories (or specific artifacts).
  * Triggers browser download of a .zip file.
+ *
+ * @param {string} dataset - Dataset name
+ * @param {string[]} videoNames - Video names to download
+ * @param {string|null} artifact - Specific artifact filename, or null for full folders
+ * @param {import('svelte/store').Writable<string>} statusStore - Store for status messages
  */
-import { downloadStatus } from './stores.js';
-
-export async function downloadSamples(dataset, videoNames) {
-  downloadStatus.set(`Zipping ${videoNames.length} sample${videoNames.length > 1 ? 's' : ''}.`);
+export async function downloadSamples(dataset, videoNames, artifact = null, statusStore = null) {
+  const store = statusStore || downloadStatus;
+  const label = artifact || 'sample';
+  store.set(`Zipping ${videoNames.length} ${label}${videoNames.length > 1 ? 's' : ''}.`);
   try {
+    const body = { dataset, video_names: videoNames };
+    if (artifact) body.artifact = artifact;
     const resp = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataset, video_names: videoNames }),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) {
       const data = await resp.json().catch(() => null);
-      downloadStatus.set('');
+      store.set('');
       throw new Error((data && data.error) || `${resp.status} ${resp.statusText}`);
     }
-    downloadStatus.set('Downloading zip.');
+    store.set('Downloading zip.');
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -226,8 +234,23 @@ export async function downloadSamples(dataset, videoNames) {
     a.click();
     URL.revokeObjectURL(url);
   } finally {
-    downloadStatus.set('');
+    store.set('');
   }
+}
+
+/**
+ * Estimate total download size for a set of samples + optional artifact filter.
+ * Pure function (returns promise of {total_bytes: number, file_count: number}).
+ */
+export async function fetchDownloadSize(dataset, videoNames, artifact = null) {
+  const body = { dataset, video_names: videoNames };
+  if (artifact) body.artifact = artifact;
+  const resp = await fetch('/api/download/size', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return checkedJson(resp);
 }
 
 /**

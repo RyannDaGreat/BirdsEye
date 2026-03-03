@@ -625,3 +625,25 @@ Score field metadata belongs in the processor that produces the embeddings, not 
 
 ### UI: Caption moved above preview sections
 - Caption PreviewSection now appears directly after Fields, before plugin-declared preview sections. Previously was after all preview sections.
+
+## 2026-03-03 — Export Modal Overhaul + Download Unification
+
+### Export Modal Overhaul
+- **Problem**: Export modal was too simple — just dumped video names into a textarea with no options.
+- **Solution**: Full rewrite of ExportModal.svelte. Four-band layout (header, controls, content, footer). Fixed 85vh × 80vw modal. Two content modes (Names / Paths), two format modes (Lines / JSON). Artifact dropdown in Paths mode populated from processor plugin declarations via `$fieldInfo` — no hardcoding of artifact filenames. Spinner overlay while loading. Icons on all buttons.
+- **Design rationale**: Users need to export different things — sometimes just video names for scripting, sometimes full paths for batch processing, sometimes specific artifact paths. The artifact dropdown is plugin-driven so new processors automatically appear without UI changes.
+
+### Server: paths added to export endpoints
+- `/api/export/names` now returns `{names, paths, total}` instead of just `{names, total}`. Paths computed via `resolve_sample_path()`.
+- New `POST /api/export/resolve` endpoint — takes `{dataset, video_names}`, returns sorted `{names, paths}`. Used by "Export Selected" to get paths without re-running the full search.
+- **Why two endpoints**: "Export All" runs the full search pipeline (filters, sort, etc.) to get names+paths. "Export Selected" only needs to resolve already-known names to paths — no search needed.
+
+### Download Button Unification
+- **Problem**: Download button code was duplicated — StatusBar had inline download with Popover and downloadStatus, ExportModal needed the same behavior. User explicitly requested: "inherit the download button and all its behaviors so when we modify one download button, we modify them all."
+- **Solution**: Created `DownloadButton.svelte` widget — self-contained component with props (dataset, videoNames, artifact, compact). Fetches size estimate via `POST /api/download/size`, shows human-readable file size. Shows spinner + status while downloading. Used by both StatusBar and ExportModal.
+- **Artifact-aware downloads**: `POST /api/download` now accepts optional `artifact` parameter. When null, zips full sample directories. When set (e.g., "video.mp4"), zips only that file per sample, flat-named (e.g., `pexels_19012581.mp4`). This avoids the degenerate case of downloading folders where every subfolder contains a single identically-named file.
+- **Size estimation**: `POST /api/download/size` returns `{total_bytes, file_count}` so users know what they're getting into before clicking download.
+- `downloadSamples()` in api.js now accepts optional artifact and statusStore params. Each DownloadButton instance gets its own writable store so multiple buttons don't interfere.
+
+### Removed onDownload from App.svelte
+- StatusBar no longer dispatches 'download' event. DownloadButton is self-contained — it calls `downloadSamples` directly. App.svelte no longer needs an `onDownload` handler or a `downloadSamples` import. Cleaner separation of concerns.

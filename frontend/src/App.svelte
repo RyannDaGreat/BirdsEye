@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, searchStatus, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels, statsHeight } from './lib/stores.js';
-  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClipStreaming, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNamesAndPaths, exportResolve, downloadSamples } from './lib/api.js';
+  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClipStreaming, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNamesAndPaths, exportResolve } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
   import { isDynamicField } from './lib/fields.js';
@@ -227,11 +227,6 @@
     $favorites = s;
   }
 
-  async function onDownload() {
-    if ($selectedVideos.size === 0) return;
-    await downloadSamples($currentDataset, Array.from($selectedVideos));
-  }
-
   async function onExport(e) {
     const mode = e.detail.mode;
     exportLoading = true;
@@ -259,7 +254,7 @@
 <FilterPanel on:search={doSearch} />
 <StatsPanel />
 <SyntaxHelp />
-<StatusBar on:export={onExport} on:pagechange={onPageChange} on:download={onDownload} />
+<StatusBar on:export={onExport} on:pagechange={onPageChange} />
 <div class="content-row">
   <VideoGrid on:toggle={onToggle} on:detail={onDetail} on:favorite={onFavorite} />
   <DetailPanel on:favorite={onFavorite} />

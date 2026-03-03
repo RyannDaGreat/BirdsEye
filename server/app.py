@@ -1075,12 +1075,57 @@ def create_app(port=8899):
         paths = [resolve_sample_path(datasets_dir, dataset, n) for n in names]
         return jsonify({"names": names, "paths": paths})
 
-    @app.route("/api/download", methods=["POST"])
-    def download_samples():
-        """Zip selected sample directories and stream as download."""
+    @app.route("/api/download/size", methods=["POST"])
+    def download_size():
+        """
+        Estimate total download size for a set of samples + optional artifact filter.
+
+        POST body: {dataset, video_names: [...], artifact?: string}
+        - artifact omitted or null → sum all files in each sample dir
+        - artifact = "video.mp4" → sum only that file from each sample dir
+
+        Returns {total_bytes: int, file_count: int}.
+        """
         data = request.get_json()
         dataset_name = data.get("dataset", "pexels")
         video_names = data.get("video_names", [])
+        artifact = data.get("artifact")  # None = full folder
+
+        if dataset_name not in DATASETS:
+            return jsonify({"error": f"Unknown dataset: {dataset_name}"}), 404
+
+        total_bytes = 0
+        file_count = 0
+        for vname in video_names:
+            sdir = resolve_sample_path(datasets_dir, dataset_name, vname)
+            if not os.path.isdir(sdir):
+                continue
+            if artifact:
+                fpath = os.path.join(sdir, artifact)
+                if os.path.isfile(fpath):
+                    total_bytes += os.path.getsize(fpath)
+                    file_count += 1
+            else:
+                for fname in os.listdir(sdir):
+                    fpath = os.path.join(sdir, fname)
+                    if os.path.isfile(fpath):
+                        total_bytes += os.path.getsize(fpath)
+                        file_count += 1
+        return jsonify({"total_bytes": total_bytes, "file_count": file_count})
+
+    @app.route("/api/download", methods=["POST"])
+    def download_samples():
+        """
+        Zip selected sample directories and stream as download.
+
+        POST body: {dataset, video_names: [...], artifact?: string}
+        - artifact omitted or null → zip full sample directories
+        - artifact = "video.mp4" → zip only that one file per sample (flat, no subdirs)
+        """
+        data = request.get_json()
+        dataset_name = data.get("dataset", "pexels")
+        video_names = data.get("video_names", [])
+        artifact = data.get("artifact")  # None = full folder
 
         if dataset_name not in DATASETS:
             return jsonify({"error": f"Unknown dataset: {dataset_name}"}), 404
@@ -1092,7 +1137,6 @@ def create_app(port=8899):
         if not video_names:
             return jsonify({"error": "No video names provided."}), 400
 
-        datasets_dir = os.path.join(REPO_ROOT, "datasets")
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for vname in video_names:
@@ -1100,10 +1144,18 @@ def create_app(port=8899):
                 if not os.path.isdir(sdir):
                     continue
                 flat_prefix = f"{dataset_name}_{vname}"
-                for fname in os.listdir(sdir):
-                    fpath = os.path.join(sdir, fname)
+                if artifact:
+                    # Single artifact mode: flat file, e.g. "pexels_19012581_video.mp4"
+                    fpath = os.path.join(sdir, artifact)
                     if os.path.isfile(fpath):
-                        zf.write(fpath, f"{flat_prefix}/{fname}")
+                        ext = os.path.splitext(artifact)[1]
+                        zf.write(fpath, f"{flat_prefix}{ext}")
+                else:
+                    # Full folder mode
+                    for fname in os.listdir(sdir):
+                        fpath = os.path.join(sdir, fname)
+                        if os.path.isfile(fpath):
+                            zf.write(fpath, f"{flat_prefix}/{fname}")
         buf.seek(0)
         return send_file(
             buf,
