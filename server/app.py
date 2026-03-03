@@ -360,6 +360,8 @@ def create_app(port=8899):
     print("Loading datasets...")
     if os.path.exists(datasets_dir):
         for name in sorted(os.listdir(datasets_dir)):
+            if name.startswith('.') or name.startswith('__'):
+                continue
             ds_path = os.path.join(datasets_dir, name)
             if os.path.isdir(ds_path):
                 ds = load_dataset(name, datasets_dir)
@@ -1129,10 +1131,6 @@ def create_app(port=8899):
 
         if dataset_name not in DATASETS:
             return jsonify({"error": f"Unknown dataset: {dataset_name}"}), 404
-
-        MAX_SAMPLES = 50
-        if len(video_names) > MAX_SAMPLES:
-            return jsonify({"error": f"Too many samples ({len(video_names)}). Maximum is {MAX_SAMPLES}."}), 400
 
         if not video_names:
             return jsonify({"error": "No video names provided."}), 400

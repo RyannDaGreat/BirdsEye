@@ -1130,6 +1130,10 @@ Bash was error-prone — unknown args like `--google` were silently accepted as 
 - `startup` — full sequence: build frontend → aggregate → start server (default via run.sh)
 - `serve` — just start the server (skip build/aggregate, useful for dev)
 
+**Dataset discovery** scans `datasets/` for subdirectories containing `manifest.json`.
+Directories starting with `.` or `__` (e.g., `__pycache__`) are skipped before checking
+for manifests — prevents confusing "Skipping dataset '__pycache__'" log spam.
+
 **`--skip_aggregate` flag:**
 - Without flag (default): aggregates cache for ALL discovered datasets.
 - With flag + all caches exist: skips aggregation entirely for fast startup.

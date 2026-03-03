@@ -59,6 +59,11 @@
   /* Overlay/glass */
   --glass-bg: rgba(15, 15, 15, 0.92);
   --black: #000;
+
+  /* Modal */
+  --modal-overlay-bg: rgba(0, 0, 0, 0.7);
+  --modal-loading-bg: rgba(0, 0, 0, 0.5);
+  --z-modal: 1000;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -229,6 +234,37 @@ iconify-icon { font-size: calc(1em * var(--icon-scale)); vertical-align: var(--i
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* === Modal (shared by ExportModal, ConfirmModal, etc.) === */
+.modal-overlay {
+  position: fixed; inset: 0; background: var(--modal-overlay-bg);
+  z-index: var(--z-modal); display: flex; align-items: center; justify-content: center;
+}
+.modal-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--space-lg);
+  display: flex; flex-direction: column; gap: var(--space-md);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.modal-header h2 {
+  font-size: var(--font-size-base); color: var(--accent); margin: 0;
+  display: flex; align-items: center; gap: var(--space-sm);
+}
+.modal-close {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: var(--font-size-lg); padding: var(--space-xs);
+  display: flex; align-items: center;
+}
+.modal-close:hover { color: var(--text); }
+.modal-footer {
+  display: flex; gap: var(--space-md); justify-content: flex-end; flex-shrink: 0;
+}
+.modal-body {
+  color: var(--text); font-size: var(--font-size-base); line-height: var(--line-height);
+}
+.modal-body .dim { color: var(--text-dim); }
 
 /* === Spinner === */
 @keyframes spin { to { transform: rotate(360deg); } }

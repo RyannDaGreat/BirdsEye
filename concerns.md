@@ -647,3 +647,7 @@ Score field metadata belongs in the processor that produces the embeddings, not 
 
 ### Removed onDownload from App.svelte
 - StatusBar no longer dispatches 'download' event. DownloadButton is self-contained — it calls `downloadSamples` directly. App.svelte no longer needs an `onDownload` handler or a `downloadSamples` import. Cleaner separation of concerns.
+
+### Bug: `__pycache__` detected as dataset
+- **Problem**: Dataset loader scans `datasets/` with `os.listdir` and tries every subdirectory. Python's `__pycache__/` passed the `os.path.isdir` check, hit the "no manifest" skip message: `Skipping dataset '__pycache__': no manifest at ...`. Harmless but ugly.
+- **Fix**: Added `if name.startswith('.') or name.startswith('__'): continue` before the `isdir` check in `create_app()`. Filters out `__pycache__` and hidden dirs before they're ever considered as datasets.

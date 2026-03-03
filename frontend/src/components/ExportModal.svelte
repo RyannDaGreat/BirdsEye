@@ -95,11 +95,11 @@
 {#if $showExport}
   <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
   <div class="modal-overlay" on:click={onOverlayClick}>
-    <div class="modal">
+    <div class="modal-box export-modal">
       <!-- HEADER -->
-      <div class="header">
+      <div class="modal-header">
         <h2><iconify-icon icon="mdi:export" inline></iconify-icon> Export</h2>
-        <button class="close-btn" on:click={close} title="Close">
+        <button class="modal-close" on:click={close} title="Close">
           <iconify-icon icon="mdi:close" inline></iconify-icon>
         </button>
       </div>
@@ -135,7 +135,7 @@
       </div>
 
       <!-- FOOTER -->
-      <div class="footer">
+      <div class="modal-footer">
         <DownloadButton dataset={$currentDataset} videoNames={names} artifact={downloadArtifact} compact />
         <button class="control" on:click={copy} title="Copy to clipboard">
           <iconify-icon icon="mdi:content-copy" inline></iconify-icon> {copyLabel}
@@ -149,32 +149,10 @@
 {/if}
 
 <style>
-  .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7);
-    z-index: 1000; display: flex; align-items: center; justify-content: center;
-  }
-  .modal {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: var(--space-lg);
+  /* Export-specific sizing (shared modal classes from app.css handle the rest) */
+  .export-modal {
     width: 80vw; height: 85vh;
-    display: flex; flex-direction: column; gap: var(--space-md);
   }
-
-  /* HEADER */
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-shrink: 0;
-  }
-  h2 {
-    font-size: var(--font-size-base); color: var(--accent); margin: 0;
-    display: flex; align-items: center; gap: var(--space-sm);
-  }
-  .close-btn {
-    background: none; border: none; color: var(--text-dim);
-    cursor: pointer; font-size: var(--font-size-lg); padding: var(--space-xs);
-    display: flex; align-items: center;
-  }
-  .close-btn:hover { color: var(--text); }
 
   /* CONTROLS */
   .controls {
@@ -209,14 +187,8 @@
   }
   .loading-overlay {
     position: absolute; inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--modal-loading-bg);
     display: flex; align-items: center; justify-content: center;
     border-radius: var(--radius);
-  }
-
-  /* FOOTER */
-  .footer {
-    display: flex; gap: var(--space-md); justify-content: flex-end;
-    flex-shrink: 0;
   }
 </style>
