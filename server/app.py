@@ -26,7 +26,7 @@ import numpy as np
 import fire
 import io
 import zipfile
-from flask import Flask, jsonify, request, send_from_directory, send_file
+from flask import Flask, jsonify, request, send_from_directory, send_file, Response
 from flask_cors import CORS
 
 # Add parent to path for imports
@@ -315,7 +315,7 @@ def load_dataset(name, datasets_dir):
     return result
 
 
-def get_vector_index(ds, prefix="clip"):
+def get_vector_index(ds, prefix):
     """
     Get a vector index from a dataset by prefix. Returns the index dict
     or None if not available. Pure function.
@@ -422,10 +422,15 @@ def create_app(port=8899):
     # Processors with embedding_space.score_field can declare a "range" for histogram binning.
     # Prevents the ratchet problem (see concerns.md).
     DYNAMIC_FIELD_RANGES = {}
+    # Mapping from embedding prefix → score field key, derived from plugins.
+    # E.g., {"clip": "score", "siglip": "siglip_score", "gve": "gve_score"}.
+    # No model is special-cased — all info comes from the processor plugin.
+    SCORE_KEYS = {}
     for _proc in all_procs.values():
         _es = getattr(_proc, 'embedding_space', None)
         if _es and 'score_field' in _es:
             _sf = _es['score_field']
+            SCORE_KEYS[_es['prefix']] = _sf['key']
             if 'range' in _sf:
                 DYNAMIC_FIELD_RANGES[_sf['key']] = tuple(_sf['range'])
 
@@ -566,7 +571,6 @@ def create_app(port=8899):
             ds_mod = dataset_modules.get(name)
             result[name] = {
                 "count": len(ds["entries"]),
-                "has_clip": "clip" in vi,
                 "has_metadata": ds["video_metadata"] is not None,
                 "vector_indices": list(vi.keys()),
                 "human_name": ds_mod.human_name if ds_mod else name,
@@ -790,17 +794,22 @@ def create_app(port=8899):
             for r in results
         ]
 
-        # Compute similarity scores so sort-by-score works in fuzzy mode too
-        clip_idx = get_vector_index(ds, "clip")
-        if query.strip() and clip_idx is not None and "clip" in text_encoders:
-            query_emb = text_encoders["clip"](query)
-            query_emb = l2_normalize(np.array(query_emb, dtype=np.float32).reshape(1, -1))
-            name_to_idx = {n: i for i, n in enumerate(clip_idx["video_names"])}
-            for r in formatted:
-                idx = name_to_idx.get(r["video_name"])
-                if idx is not None:
-                    emb = clip_idx["embeddings"][idx].astype(np.float32).reshape(1, -1)
-                    r["score"] = float((query_emb @ emb.T).item())
+        # Compute similarity scores so sort-by-score works in fuzzy mode too.
+        # Uses the first available embedding model — no model is special-cased.
+        if query.strip():
+            for prefix in text_encoders:
+                vi_fuzzy = get_vector_index(ds, prefix)
+                if vi_fuzzy is not None:
+                    score_key = SCORE_KEYS.get(prefix, "score")
+                    query_emb = text_encoders[prefix](query)
+                    query_emb = l2_normalize(np.array(query_emb, dtype=np.float32).reshape(1, -1))
+                    name_to_idx = {n: i for i, n in enumerate(vi_fuzzy["video_names"])}
+                    for r in formatted:
+                        idx = name_to_idx.get(r["video_name"])
+                        if idx is not None:
+                            emb = vi_fuzzy["embeddings"][idx].astype(np.float32).reshape(1, -1)
+                            r[score_key] = float((query_emb @ emb.T).item())
+                    break  # Use the first available model only
 
         page_results, total, result_histograms = post_process(formatted, ds, dataset, filters, thumb_filter, fav_filter, sort_key, sort_dir, page, page_size, random_seed)
         return jsonify({
@@ -819,6 +828,7 @@ def create_app(port=8899):
         index_name = request.args.get("index", "clip")
         filters = parse_filters(request.args)
         page, page_size, sort_key, sort_dir, thumb_filter, fav_filter, random_seed = parse_pagination(request.args)
+        use_sse = "text/event-stream" in request.headers.get("Accept", "")
 
         if dataset not in DATASETS:
             ds_mod = dataset_modules.get(dataset)
@@ -846,24 +856,107 @@ def create_app(port=8899):
             return jsonify({"error": f"Text encoder for '{index_name}' is not loaded.",
                             "hint": f"The server needs the {index_name} AI model to understand your search query, but it isn't loaded. The processor that provides it may not be installed."}), 400
 
-        query_emb = text_encoders[index_name](query)
-        # Return all indexed vectors — pagination handles the windowing
-        results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]))
+        def do_search():
+            """Run the actual search. Generator for SSE mode, direct call for JSON mode."""
+            from server.status import set_callback, set_status
+            status_messages = []
 
-        for r in results:
-            r["caption"] = ds["caption_map"].get(r["video_name"], "")
-            r["thumb_url"] = f"/thumbnails/{dataset}/{r['video_name']}/thumb_middle.jpg"
+            if use_sse:
+                # Collect status messages via thread-local callback
+                def on_status(msg):
+                    status_messages.append(msg)
+                set_callback(on_status)
 
-        page_results, total, result_histograms = post_process(results, ds, dataset, filters, thumb_filter, fav_filter, sort_key, sort_dir, page, page_size, random_seed)
-        return jsonify({
-            "results": page_results,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "query": query,
-            "index": index_name,
-            "histograms": result_histograms,
-        })
+            score_key = SCORE_KEYS.get(index_name, "score")
+
+            # Encoding the query may trigger model loading (slow on first call).
+            # Status callback captures loading progress for SSE streaming.
+            set_status(f"Encoding query with {index_name}...")
+            query_emb = text_encoders[index_name](query)
+            set_status("Searching...")
+
+            if use_sse:
+                set_callback(None)
+
+            results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]), score_key=score_key)
+
+            for r in results:
+                r["caption"] = ds["caption_map"].get(r["video_name"], "")
+                r["thumb_url"] = f"/thumbnails/{dataset}/{r['video_name']}/thumb_middle.jpg"
+
+            page_results, total, result_histograms = post_process(results, ds, dataset, filters, thumb_filter, fav_filter, sort_key, sort_dir, page, page_size, random_seed)
+            return {
+                "results": page_results,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "query": query,
+                "index": index_name,
+                "histograms": result_histograms,
+            }, status_messages
+
+        if not use_sse:
+            result_data, _ = do_search()
+            return jsonify(result_data)
+
+        # SSE streaming mode: run search in a thread, stream status events.
+        import queue
+        import threading
+        result_queue = queue.Queue()
+        status_queue = queue.Queue()
+
+        def run_search():
+            from server.status import set_callback
+            def on_status(msg):
+                status_queue.put(msg)
+            set_callback(on_status)
+            try:
+                from server.status import set_status
+                set_status(f"Encoding query with {index_name}...")
+                score_key = SCORE_KEYS.get(index_name, "score")
+                query_emb = text_encoders[index_name](query)
+                set_status("Searching...")
+                set_callback(None)
+
+                results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]), score_key=score_key)
+                for r in results:
+                    r["caption"] = ds["caption_map"].get(r["video_name"], "")
+                    r["thumb_url"] = f"/thumbnails/{dataset}/{r['video_name']}/thumb_middle.jpg"
+
+                page_results, total, result_histograms = post_process(results, ds, dataset, filters, thumb_filter, fav_filter, sort_key, sort_dir, page, page_size, random_seed)
+                result_queue.put({
+                    "results": page_results,
+                    "total": total,
+                    "page": page,
+                    "page_size": page_size,
+                    "query": query,
+                    "index": index_name,
+                    "histograms": result_histograms,
+                })
+            except Exception as e:
+                result_queue.put({"error": str(e)})
+            finally:
+                set_callback(None)
+
+        t = threading.Thread(target=run_search, daemon=True)
+        t.start()
+
+        def generate():
+            import time
+            while t.is_alive() or not status_queue.empty():
+                # Drain status messages
+                while not status_queue.empty():
+                    msg = status_queue.get_nowait()
+                    yield f"event: status\ndata: {json.dumps({'type': 'status', 'message': msg})}\n\n"
+                if t.is_alive():
+                    time.sleep(0.1)
+            # Final result
+            if not result_queue.empty():
+                data = result_queue.get_nowait()
+                yield f"event: result\ndata: {json.dumps({'type': 'result', 'data': data})}\n\n"
+
+        return Response(generate(), mimetype="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.route("/api/search/hull", methods=["POST"])
     def search_hull():
@@ -905,8 +998,9 @@ def create_app(port=8899):
                             "hint": f"The {n_selected} video(s) you selected are not in the {index_name} embedding index ({n_indexed} videos are indexed). These specific videos were not processed with the {index_name} embedding model. Try selecting different videos that have been fully processed."}), 400
 
         selected_embs = vi["embeddings"][selected_indices]
+        score_key = SCORE_KEYS.get(index_name, "score")
         # Return all indexed vectors — pagination handles the windowing
-        results = convex_hull_search(selected_embs, vi["embeddings"], vi["video_names"], k=len(vi["video_names"]))
+        results = convex_hull_search(selected_embs, vi["embeddings"], vi["video_names"], k=len(vi["video_names"]), score_key=score_key)
 
         for r in results:
             r["caption"] = ds["caption_map"].get(r["video_name"], "")
@@ -951,8 +1045,9 @@ def create_app(port=8899):
                 return jsonify({"error": f"Vector index '{index_name}' not available"}), 400
             if index_name not in text_encoders:
                 return jsonify({"error": f"Text encoder for '{index_name}' not loaded"}), 400
+            score_key = SCORE_KEYS.get(index_name, "score")
             query_emb = text_encoders[index_name](query)
-            results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]))
+            results = clip_search(query_emb, vi["faiss_index"], vi["video_names"], k=len(vi["video_names"]), score_key=score_key)
             for r in results:
                 r["caption"] = ds["caption_map"].get(r["video_name"], "")
             formatted = results
@@ -965,7 +1060,20 @@ def create_app(port=8899):
         sorted_results = sort_results(filtered, sort_key, sort_dir, random_seed)
 
         names = [r["video_name"] for r in sorted_results]
-        return jsonify({"names": names, "total": len(names)})
+        paths = [resolve_sample_path(datasets_dir, dataset, n) for n in names]
+        return jsonify({"names": names, "paths": paths, "total": len(names)})
+
+    @app.route("/api/export/resolve", methods=["POST"])
+    def export_resolve():
+        """Resolve video names to sample directory paths."""
+        data = request.get_json()
+        dataset = data.get("dataset", "pexels")
+        video_names = data.get("video_names", [])
+        if dataset not in DATASETS:
+            return jsonify({"error": f"Unknown dataset: {dataset}"}), 404
+        names = sorted(video_names)
+        paths = [resolve_sample_path(datasets_dir, dataset, n) for n in names]
+        return jsonify({"names": names, "paths": paths})
 
     @app.route("/api/download", methods=["POST"])
     def download_samples():

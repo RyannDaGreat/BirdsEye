@@ -1,5 +1,5 @@
 <script>
-  import { currentResults, loading, errorMsg, errorHint } from '../lib/stores.js';
+  import { currentResults, loading, searchStatus, errorMsg, errorHint } from '../lib/stores.js';
   import VideoCard from './VideoCard.svelte';
   import { createEventDispatcher } from 'svelte';
 
@@ -15,7 +15,14 @@
 
 <div class="main">
   {#if $loading}
-    <div class="center-state"><div class="spinner"></div>Loading...</div>
+    <div class="center-state">
+      <div class="spinner"></div>
+      {#if $searchStatus}
+        <div class="status-text">{$searchStatus}</div>
+      {:else}
+        Loading...
+      {/if}
+    </div>
   {:else if $errorMsg}
     <div class="center-state">
       <span class="error-msg">{$errorMsg}</span>
@@ -48,6 +55,7 @@
     padding: 60px; color: var(--text-dim); font-size: var(--font-size-base);
     height: 100%; min-height: 300px;
   }
+  .status-text { color: var(--text-dim); font-size: var(--font-size-control); margin-top: var(--space-md); }
   .error-msg { color: var(--selected); margin-bottom: var(--space-sm); }
   .hint-msg { color: var(--text-dim); font-size: var(--font-size-control); max-width: 500px; text-align: center; line-height: 1.6; margin-bottom: var(--space-xl); }
   .empty-msg { margin-bottom: var(--space-xl); }

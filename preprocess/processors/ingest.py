@@ -367,7 +367,7 @@ class IngestProcessor(Processor):
     ]
 
     preview_sections = [
-        {"type": "side_by_side_images", "label": "Frames", "priority": 20,
+        {"type": "side_by_side_images", "label": "Frames", "priority": 40,
          "description": "First, middle, and last frames extracted at 512px height (JPEG). Artifacts: thumb_first.jpg, thumb_middle.jpg, thumb_last.jpg.",
          "args": {"files": ["thumb_first.jpg", "thumb_middle.jpg", "thumb_last.jpg"],
                   "labels": ["First", "Middle", "Last"]}},

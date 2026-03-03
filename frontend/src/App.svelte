@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels, statsHeight } from './lib/stores.js';
-  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClip, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNames, downloadSamples } from './lib/api.js';
+  import { currentDataset, currentMode, currentSort, searchQuery, currentResults, selectedVideos, datasets, metadataStats, histogramData, fieldInfo, appConfig, loading, searchStatus, errorMsg, errorHint, filters, detailData, showFilters, pageSize, currentPage, thumbFilter, favFilter, logScale, totalResults, favorites, embeddingModels, statsHeight } from './lib/stores.js';
+  import { fetchDatasets, fetchMetadataStats, fetchHistograms, fetchFieldInfo, fetchConfig, searchFuzzy, searchClipStreaming, searchHull, fetchVideoInfo, fetchFavorites, toggleFavorite, fetchEmbeddingModels, exportAllNamesAndPaths, exportResolve, downloadSamples } from './lib/api.js';
   import { readStateFromURL, writeStateToURL } from './lib/url.js';
   import { parseSortKey } from './lib/format.js';
   import { isDynamicField } from './lib/fields.js';
@@ -15,7 +15,9 @@
   import DetailPanel from './components/DetailPanel.svelte';
   import ExportModal from './components/ExportModal.svelte';
 
-  let exportText = '';
+  let exportNames = [];
+  let exportPaths = [];
+  let exportLoading = false;
   let initialized = false;
   let randomSeed = Date.now();
 
@@ -71,6 +73,7 @@
     $loading = true;
     $errorMsg = '';
     $errorHint = '';
+    $searchStatus = '';
     if (resetPage) $currentPage = 1;
 
     const { key: sortKey, direction: sortDir } = parseSortKey($currentSort);
@@ -99,7 +102,7 @@
           $totalResults = 0;
           return;
         }
-        data = await searchClip($currentDataset, $searchQuery, { ...searchParams, index: $currentMode });
+        data = await searchClipStreaming($currentDataset, $searchQuery, { ...searchParams, index: $currentMode }, (msg) => { $searchStatus = msg; });
       } else if ($currentMode === 'hull') {
         if ($selectedVideos.size === 0) {
           $loading = false;
@@ -155,6 +158,7 @@
       $totalResults = 0;
     }
     $loading = false;
+    $searchStatus = '';
   }
 
   async function onReload() {
@@ -230,18 +234,24 @@
 
   async function onExport(e) {
     const mode = e.detail.mode;
+    exportLoading = true;
+    exportNames = [];
+    exportPaths = [];
     if (mode === 'selected') {
-      exportText = Array.from($selectedVideos).sort().join('\n');
+      const result = await exportResolve($currentDataset, Array.from($selectedVideos));
+      exportNames = result.names;
+      exportPaths = result.paths;
     } else {
-      // Fetch ALL matching names from server (not just current page)
       const { key: sortKey, direction: sortDir } = parseSortKey($currentSort);
-      const names = await exportAllNames($currentDataset, $searchQuery, $currentMode, {
+      const result = await exportAllNamesAndPaths($currentDataset, $searchQuery, $currentMode, {
         sort: sortKey, sortDir,
         thumbFilter: $thumbFilter, favFilter: $favFilter,
         filters: $filters, index: $currentMode,
       });
-      exportText = names.join('\n');
+      exportNames = result.names;
+      exportPaths = result.paths;
     }
+    exportLoading = false;
   }
 </script>
 
@@ -254,7 +264,7 @@
   <VideoGrid on:toggle={onToggle} on:detail={onDetail} on:favorite={onFavorite} />
   <DetailPanel on:favorite={onFavorite} />
 </div>
-<ExportModal text={exportText} />
+<ExportModal names={exportNames} paths={exportPaths} loading={exportLoading} />
 
 <style>
   .content-row {

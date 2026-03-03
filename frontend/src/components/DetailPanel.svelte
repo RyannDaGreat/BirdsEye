@@ -112,14 +112,14 @@
       </div>
     </PreviewSection>
 
+    <PreviewSection label="Caption" defaultOpen={true}>
+      <div class="detail-caption">{@html highlightTerms($detailData.caption || '', $searchQuery)}</div>
+    </PreviewSection>
+
     <!-- Plugin-declared preview sections (accordion) -->
     {#each previewSections as section}
       <SectionRenderer {section} videoName={$detailData.video_name} />
     {/each}
-
-    <PreviewSection label="Caption" defaultOpen={true}>
-      <div class="detail-caption">{@html highlightTerms($detailData.caption || '', $searchQuery)}</div>
-    </PreviewSection>
 
     <div class="detail-path">{$detailData.sample_path || $detailData.source_path || ''}</div>
   </div>

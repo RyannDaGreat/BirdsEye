@@ -200,10 +200,14 @@ def _ensure_text_encoder():
     if _text_model is None:
         from transformers import SiglipModel, SiglipTokenizer
         from rp import select_torch_device
+        from server.status import set_status
         device = select_torch_device(reserve=True)
-        print(f"Loading SigLIP text encoder on {device}...")
+        msg = f"Loading SigLIP text encoder on {device}..."
+        set_status(msg)
+        print(msg)
         _text_model = SiglipModel.from_pretrained(SIGLIP_MODEL).to(device).eval()
         _text_tokenizer = SiglipTokenizer.from_pretrained(SIGLIP_MODEL)
+        set_status("SigLIP text encoder ready.")
         print("SigLIP text encoder ready.")
 
 

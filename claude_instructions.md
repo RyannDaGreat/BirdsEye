@@ -35,7 +35,7 @@
 | **Caption** | AI-generated text description of a video from the raw Pexels metadata. |
 | **FZF** | Fuzzy finder syntax used for text search. Space=AND, `\|`=OR, `!`=NOT, `'quoted'`=exact phrase. |
 | **Search Area** | The main tile grid (`VideoGrid.svelte`) where search results are displayed. Shows video cards in an auto-fill grid. In empty/error states, shows a centered message + BirdsEye logo watermark at 2/3 width, 8% opacity, matching text color. |
-| **Dynamic (modifier)** | A field modifier meaning "computed on-the-fly, not stored on disk." Orthogonal to the numeric/string axis — you can have a dynamic numeric field (e.g., CLIP Score) or a dynamic string field (future). Dynamic fields are ephemeral: they change when the query or context changes. Dynamic fields are NOT second-class: they appear in field bars, filter histograms, SPLOM, sort dropdown, and detail panel — everywhere normal fields do. Server flags them with `dynamic: True` in `/api/field_info`; frontend `fieldLabel()` prepends `DYNAMIC_MARKER` (✦ U+2726). `sortFieldKeys()` puts dynamic fields first. `compute_result_histograms()` emits histograms for dynamic fields by computing min/max from result values. `App.svelte` augments `metadataStats` with dynamic fields from search result histograms so `availableFields()` picks them up. |
+| **Dynamic (modifier)** | A field modifier meaning "computed on-the-fly, not stored on disk." Orthogonal to the numeric/string axis — you can have a dynamic numeric field (e.g., CLIP Score, SigLIP Score, GVE Score) or a dynamic string field (future). Dynamic fields are ephemeral: they change when the query or context changes. Dynamic fields are NOT second-class: they appear in field bars, filter histograms, SPLOM, sort dropdown, and detail panel — everywhere normal fields do. Server flags them with `dynamic: True` in `/api/field_info`; frontend `fieldLabel()` prepends `DYNAMIC_MARKER` (✦ U+2726). `sortFieldKeys()` puts dynamic fields first. `compute_result_histograms()` emits histograms for dynamic fields by computing min/max from result values. `App.svelte` augments `metadataStats` with dynamic fields from search result histograms so `availableFields()` picks them up. Each embedding processor declares its own score field key (e.g., `"score"`, `"siglip_score"`, `"gve_score"`) in `embedding_space.score_field.key`. The server builds a `SCORE_KEYS` mapping from these at startup — no model is special-cased. |
 | **Scatterplot Matrix** | (abbrev. SPLOM) An N×N grid of pairwise scatter plots for all toggled numeric fields. Diagonal cells show per-field histograms, off-diagonal cells show scatter plots of field[row] vs field[col]. Canvas-rendered for performance with alpha-crop: `findAlphaBounds(canvas, dpr)` pure function in `canvas.js` scans for non-zero alpha pixels to compute a tight bounding box, eliminating wasted space from generous label padding (PAD_LEFT/RIGHT/TOP=150). Mouse coordinates transform through crop offset for hover detection. Lives in the statistics panel. Standard statistical visualization for exploring correlations between multiple variables at a glance. Hovering a cell sets both row and column field keys in `hoveredFields` for cross-component highlighting. |
 | **Preview Button Bar** | Toolbar row above the video in the detail panel. Houses the favorite toggle and future action buttons. Not collapsible (always visible when panel is open). |
 | **Data Source Selector** | Two-row mode tab selector in the statistics panel. Top row (mandatory): Results / Dataset / Selection. Bottom row (optional): Results / Dataset / Selection / None. When bottom ≠ None, all statistics show differential (top minus bottom). |
@@ -604,6 +604,34 @@ Serves thumbnails from `samples/` with transparent shard routing:
 
 Frontend URLs are clean — no shard in the URL. Server handles the mapping.
 
+### Search Status Streaming (SSE)
+
+When `Accept: text/event-stream` is sent with `/api/search/clip`, the server streams Server-Sent Events (SSE) instead of a single JSON response. This gives the frontend real-time progress during slow operations (e.g., first-time model loading for GVE takes 30-60s).
+
+**Architecture:**
+- `server/status.py` — Thread-local status callback. No circular imports (depends on nothing).
+  - `set_callback(cb)` — Register a callback for the current thread.
+  - `set_status(msg)` — Report a status message. No-op if no callback registered.
+- Each processor's `_ensure_text_encoder()` calls `set_status()` during model loading.
+- The SSE endpoint runs the search in a background thread, collects status messages via a queue, and streams them as `event: status` SSE events. The final result is sent as `event: result`.
+- Frontend reads the stream via `searchClipStreaming()` in `api.js`, updating the `searchStatus` store. VideoGrid shows this text below the spinner.
+- Backward-compatible: without `Accept: text/event-stream`, the endpoint returns normal JSON.
+
+**SSE event format:**
+```
+event: status
+data: {"type": "status", "message": "Loading GVE text encoder on cuda:3 (3B params, may take a minute)..."}
+
+event: result
+data: {"type": "result", "data": {<normal search response>}}
+```
+
+### Plugin-Driven Score Fields
+
+**No embedding model is special-cased in main code.** All info about embedding models (score key, label, range) comes exclusively from processor plugins via `embedding_space.score_field`. The server builds a `SCORE_KEYS` mapping at startup (`{prefix: score_key}`) from plugin declarations. This mapping is used by all search endpoints (`/api/search/clip`, `/api/search/hull`, `/api/export/names`, and fuzzy search's similarity scoring).
+
+The `clip_search()` and `convex_hull_search()` functions in `server/search.py` accept a `score_key` parameter (default `"score"` for backward compat) that determines the key name in result dicts.
+
 ### Hot-Reload
 
 The server exposes `/api/reload/<dataset>` which re-reads all cache/ files without restarting the server process. The frontend polls `/api/status/<dataset>` and shows "Reload available" when data counts change.
@@ -614,8 +642,8 @@ The server exposes `/api/reload/<dataset>` which re-reads all cache/ files witho
 |----------|--------|--------|-------------|
 | `/` | GET | — | Serve the web UI (Svelte SPA from `static/`) |
 | `/api/datasets` | GET | — | List datasets with counts, available vector indices |
-| `/api/search/fuzzy` | GET | `dataset`, `q`, `page`, `page_size`, `sort`, `sort_dir`, `thumb_filter`, `fav_filter`, `random_seed`, `min_*`/`max_*` | FZF extended-mode text search. Server-side sort+paginate. Also computes CLIP scores if available |
-| `/api/search/clip` | GET | `dataset`, `q`, `index` (default "clip"), same pagination/filter params | Semantic search via FAISS. `index` selects which vector index to query |
+| `/api/search/fuzzy` | GET | `dataset`, `q`, `page`, `page_size`, `sort`, `sort_dir`, `thumb_filter`, `fav_filter`, `random_seed`, `min_*`/`max_*` | FZF extended-mode text search. Server-side sort+paginate. Also computes similarity scores using first available embedding model |
+| `/api/search/clip` | GET | `dataset`, `q`, `index` (default "clip"), same pagination/filter params. `Accept: text/event-stream` for SSE mode | Semantic search via FAISS. `index` selects which vector index to query. SSE mode streams loading status before final result |
 | `/api/search/hull` | POST | Body: `{dataset, selected, index, page, page_size, sort, sort_dir, thumb_filter, fav_filter, random_seed, min_*/max_*}` | Convex hull (centroid) search from selected videos |
 | `/api/metadata_stats/<dataset>` | GET | — | Min/max/count for all numeric fields (count = samples with that field) |
 | `/api/histograms/<dataset>` | GET | `bins` (default 60) | Histogram bin counts for all numeric fields |
@@ -771,7 +799,8 @@ All other frontend features carry forward unchanged:
 │       └── phash.py          # perceptual hash (CPU Pool)
 ├── server/
 │   ├── app.py                # Flask server, all API endpoints
-│   └── search.py             # search logic (fuzzy, CLIP, hull)
+│   ├── search.py             # search logic (fuzzy, CLIP, hull)
+│   └── status.py             # thread-local status callback for SSE progress reporting
 ├── frontend/
 │   └── src/                  # Svelte app (see Frontend Components section)
 ├── static/                   # vite build output (gitignored)

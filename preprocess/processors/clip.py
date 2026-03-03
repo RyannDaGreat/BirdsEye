@@ -199,10 +199,14 @@ def _ensure_text_encoder():
     if _text_model is None:
         from transformers import CLIPModel, CLIPTokenizerFast
         from rp import select_torch_device
+        from server.status import set_status
         device = select_torch_device(reserve=True)
-        print(f"Loading CLIP text encoder on {device}...")
+        msg = f"Loading CLIP text encoder on {device}..."
+        set_status(msg)
+        print(msg)
         _text_model = CLIPModel.from_pretrained(CLIP_MODEL).to(device).eval()
         _text_tokenizer = CLIPTokenizerFast.from_pretrained(CLIP_MODEL)
+        set_status("CLIP text encoder ready.")
         print("CLIP text encoder ready.")
 
 

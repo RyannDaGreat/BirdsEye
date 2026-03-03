@@ -152,17 +152,19 @@ def fuzzy_search(entries, query, limit=200):
     return results
 
 
-def clip_search(query_embedding, index, video_names, k=200):
+def clip_search(query_embedding, index, video_names, k=200, score_key="score"):
     """
-    Search FAISS index for nearest neighbors to a CLIP text embedding.
+    Search FAISS index for nearest neighbors to a text embedding.
     Pure function.
-    (D,) or (1, D) float32, faiss.Index, list[str] → list[{video_name, score}]
+    (D,) or (1, D) float32, faiss.Index, list[str], int, str → list[{video_name, <score_key>}]
 
     >>> import faiss
     >>> idx = faiss.IndexFlatIP(3)
     >>> idx.add(np.array([[1,0,0],[0,1,0]], dtype=np.float32))
     >>> clip_search([1, 0, 0], idx, ["a", "b"], k=2)[0]["video_name"]
     'a'
+    >>> clip_search([1, 0, 0], idx, ["a", "b"], k=2, score_key="gve_score")[0]["gve_score"]
+    1.0
     """
     query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
     query_embedding = l2_normalize(query_embedding)
@@ -170,15 +172,15 @@ def clip_search(query_embedding, index, video_names, k=200):
     results = []
     for score, idx in zip(scores[0], indices[0]):
         if idx < len(video_names):
-            results.append({"video_name": video_names[idx], "score": float(score)})
+            results.append({"video_name": video_names[idx], score_key: float(score)})
     return results
 
 
-def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
+def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200, score_key="score"):
     """
     Find videos nearest to the centroid of selected video embeddings.
     Pure function.
-    (K, D) float32, (N, D) float32, list[str] → list[{video_name, score}]
+    (K, D) float32, (N, D) float32, list[str], int, str → list[{video_name, <score_key>}]
 
     Despite the name, this is NOT convex hull membership testing. In 512-dim
     space, K<512 points form a degenerate simplex with zero volume — nothing
@@ -191,6 +193,8 @@ def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
     >>> embs = np.array([[1,0,0],[0,1,0],[0.9,0.1,0]], dtype=np.float32)
     >>> convex_hull_search(embs[:1], embs, ["a","b","c"], k=3)[0]["video_name"]
     'a'
+    >>> convex_hull_search(embs[:1], embs, ["a","b","c"], k=3, score_key="siglip_score")[0]["siglip_score"]
+    1.0
     """
     if len(selected_embeddings) == 0:
         return []
@@ -208,7 +212,7 @@ def convex_hull_search(selected_embeddings, all_embeddings, video_names, k=200):
     for idx in top_indices:
         results.append({
             "video_name": video_names[idx],
-            "score": float(similarities[idx]),
+            score_key: float(similarities[idx]),
         })
     return results
 

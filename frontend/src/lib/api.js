@@ -41,6 +41,74 @@ async function searchWithEndpoint(endpoint, dataset, query, params) {
 export const searchFuzzy = (dataset, query, params) => searchWithEndpoint('fuzzy', dataset, query, params);
 export const searchClip = (dataset, query, params) => searchWithEndpoint('clip', dataset, query, params);
 
+/**
+ * SSE-streaming version of searchClip. Sends status events to onStatus callback
+ * while the server loads models / runs search, then returns the final result.
+ * Falls back to normal JSON if SSE parsing fails.
+ */
+export async function searchClipStreaming(dataset, query, params, onStatus) {
+  const filterQS = filtersToQueryString(params.filters);
+  const paginationQS = paginationToQueryString(params);
+  const indexQS = params.index ? `&index=${encodeURIComponent(params.index)}` : '';
+  const url = `/api/search/clip?dataset=${dataset}&q=${encodeURIComponent(query)}${filterQS}${paginationQS}${indexQS}`;
+  const resp = await fetch(url, { headers: { 'Accept': 'text/event-stream' } });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+    const err = new Error((data && data.error) || `${resp.status} ${resp.statusText}`);
+    err.hint = (data && data.hint) || '';
+    throw err;
+  }
+
+  // If server didn't return SSE (e.g., error responses are still JSON), parse as JSON
+  const contentType = resp.headers.get('Content-Type') || '';
+  if (!contentType.includes('text/event-stream')) {
+    return resp.json();
+  }
+
+  // Parse SSE stream
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse complete SSE events (double newline delimited)
+    let idx;
+    while ((idx = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+
+      // Extract data line from SSE block
+      let dataStr = '';
+      for (const line of block.split('\n')) {
+        if (line.startsWith('data: ')) {
+          dataStr += line.slice(6);
+        }
+      }
+      if (!dataStr) continue;
+
+      const parsed = JSON.parse(dataStr);
+      if (parsed.type === 'status') {
+        if (onStatus) onStatus(parsed.message);
+      } else if (parsed.type === 'result') {
+        result = parsed.data;
+      }
+    }
+  }
+
+  if (result && result.error) {
+    const err = new Error(result.error);
+    err.hint = result.hint || '';
+    throw err;
+  }
+  return result;
+}
+
 export async function searchHull(dataset, selected, { page, pageSize, sort, sortDir, thumbFilter, favFilter, randomSeed, filters }) {
   const resp = await fetch('/api/search/hull', {
     method: 'POST',
@@ -100,11 +168,11 @@ export async function toggleFavorite(dataset, videoName, action) {
 }
 
 /**
- * Fetch all matching video names for current search (no pagination).
+ * Fetch all matching video names and paths for current search (no pagination).
  * Used by "Export All" to get every result, not just the current page.
- * Pure function (returns promise).
+ * Pure function (returns promise of {names: string[], paths: string[]}).
  */
-export async function exportAllNames(dataset, query, mode, params) {
+export async function exportAllNamesAndPaths(dataset, query, mode, params) {
   const filterQS = filtersToQueryString(params.filters);
   const sortQS = params.sort ? `&sort=${encodeURIComponent(params.sort)}` : '';
   const sortDirQS = params.sortDir ? `&sort_dir=${params.sortDir}` : '';
@@ -113,7 +181,21 @@ export async function exportAllNames(dataset, query, mode, params) {
   const indexQS = params.index ? `&index=${encodeURIComponent(params.index)}` : '';
   const resp = await fetch(`/api/export/names?dataset=${dataset}&q=${encodeURIComponent(query)}&mode=${mode}${indexQS}${filterQS}${sortQS}${sortDirQS}${thumbQS}${favQS}`);
   const data = await checkedJson(resp);
-  return data.names || [];
+  return { names: data.names || [], paths: data.paths || [] };
+}
+
+/**
+ * Resolve selected video names to their sample directory paths.
+ * Used by "Export Selected" to get paths without re-running search.
+ * Pure function (returns promise of {names: string[], paths: string[]}).
+ */
+export async function exportResolve(dataset, videoNames) {
+  const resp = await fetch('/api/export/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataset, video_names: videoNames }),
+  });
+  return checkedJson(resp);
 }
 
 /**

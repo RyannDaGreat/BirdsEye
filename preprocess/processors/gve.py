@@ -286,9 +286,13 @@ def _ensure_text_encoder():
     global _text_model, _text_processor
     if _text_model is None:
         from rp import select_torch_device
+        from server.status import set_status
         device = select_torch_device(reserve=True)
-        print(f"Loading GVE text encoder on {device} (3B params, may take a minute)...")
+        msg = f"Loading GVE text encoder on {device} (3B params, may take a minute)..."
+        set_status(msg)
+        print(msg)
         _text_model, _text_processor = _load_gve_model(str(device))
+        set_status("GVE text encoder ready.")
         print("GVE text encoder ready.")
 
 

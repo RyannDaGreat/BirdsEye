@@ -604,3 +604,24 @@ Score field metadata belongs in the processor that produces the embeddings, not 
 
 ### Search bar debounce
 - Unified debounce to 1 second (`DEBOUNCE_MS = 1000`) for all search modes. Previously 500ms for embedding models, 150ms for fuzzy. Enter key still fires immediately.
+
+---
+
+## 2026-03-02: Search Status Updates, Dynamic Score Fields, UI Polish
+
+### Bug: clip_search() hardcoded "score" key
+- **Root cause**: `clip_search()` and `convex_hull_search()` in `server/search.py` always returned `{"score": float}` regardless of which embedding model was used. Processors declared different score keys (`siglip_score`, `gve_score`) in `embedding_space.score_field.key`, but the search functions ignored them.
+- **Fix**: Added `score_key` parameter to both functions (default `"score"` for backward compat). Server builds `SCORE_KEYS` mapping from plugin declarations at startup. All search endpoints pass the correct score key.
+- **Also fixed**: Fuzzy search hardcoded `"clip"` as the embedding model for similarity scoring. Now uses the first available model from `text_encoders` dict — no model is special-cased.
+- **Also fixed**: Removed `has_clip` from `/api/datasets` response (was the last hardcoded "clip" reference in main server code; frontend never used it).
+
+### Feature: SSE search status streaming
+- **Problem**: First-time embedding searches could hang 30-60s (especially GVE-3B) with no progress feedback.
+- **Solution**: Created `server/status.py` with thread-local callback mechanism. Processors call `set_status()` during `_ensure_text_encoder()`. The `/api/search/clip` endpoint streams SSE events when `Accept: text/event-stream` is requested. Frontend reads the stream via `searchClipStreaming()`, updating `searchStatus` store shown in `VideoGrid.svelte`.
+- **Backward compat**: Without `Accept: text/event-stream`, endpoint returns normal JSON.
+
+### UI: Frames preview collapsed by default
+- Changed ingest processor's Frames preview_section priority from 20 to 40. `SectionRenderer` collapses sections with priority > 30.
+
+### UI: Caption moved above preview sections
+- Caption PreviewSection now appears directly after Fields, before plugin-declared preview sections. Previously was after all preview sections.

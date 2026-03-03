@@ -16,6 +16,7 @@ export const embeddingModels = writable({});  // {prefix: {name, description, di
 export const logScale = writable(true);
 export const hoveredItem = writable(null); // video item being hovered in grid
 export const loading = writable(false);
+export const searchStatus = writable('');  // SSE status text during search (e.g., "Loading GVE model...")
 export const errorMsg = writable('');
 export const errorHint = writable('');
 
