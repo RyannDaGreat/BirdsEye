@@ -97,8 +97,7 @@
                on:mousemove={onColMove}
                on:mouseleave={() => { hoverIdx = -1; $hoveredWord = null; }}>
             <div class="bar-track">
-              <div class="bar-fill" style="height: {barHeights[i]}%; background: {barColor(w)};"
-                   title={tooltip(w)}></div>
+              <div class="bar-fill" style="height: {barHeights[i]}%; background: {barColor(w)};"></div>
             </div>
             <span class="bar-label" style="height: {labelH}px;">{w.word}</span>
           </div>
@@ -124,11 +123,11 @@
   }
   .bars-row {
     display: flex;
-    height: 100%; gap: 1px;
+    height: 100%;
   }
   .bar-col {
     display: flex; flex-direction: column; align-items: center;
-    flex-shrink: 0; width: 7px; cursor: default;
+    flex-shrink: 0; width: 8px; padding: 0 0.5px; cursor: default;
     height: 100%;
   }
   .bar-col.hovered { background: rgba(255,255,255,0.05); }
@@ -150,8 +149,9 @@
     flex-shrink: 0; overflow: hidden;
   }
   .bar-col.hovered .bar-label { color: var(--accent); }
-  .bar-col.caption-match .bar-fill { opacity: 1; background: #fff !important; }
-  .bar-col.caption-match .bar-label { color: #fff; }
+  .bar-col.caption-match { background: rgba(255,255,255,0.05); }
+  .bar-col.caption-match .bar-fill { opacity: 0.9; }
+  .bar-col.caption-match .bar-label { color: var(--accent); }
   .words-empty {
     display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%; color: var(--text-dim); font-size: var(--font-size-control);

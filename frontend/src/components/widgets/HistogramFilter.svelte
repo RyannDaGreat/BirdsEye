@@ -195,7 +195,7 @@
     height: var(--chart-height); background: var(--bg); border-radius: var(--radius-xs);
     display: flex; align-items: center; justify-content: center;
     font-size: var(--font-size-xxs); color: var(--border); text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: var(--letter-spacing-sm);
   }
   .hf-tip {
     position: absolute; top: calc(var(--chart-height) + var(--space-xs));

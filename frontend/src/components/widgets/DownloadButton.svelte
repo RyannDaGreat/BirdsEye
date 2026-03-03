@@ -27,9 +27,11 @@
   export let artifact = null;
   export let compact = false;
 
-  const CONFIRM_THRESHOLD = 100;
+  const CONFIRM_COUNT = 100;
+  const CONFIRM_BYTES = 100 * 1024 * 1024;  // 100 MB
   const status = writable('');
   let sizeText = '';
+  let sizeBytes = 0;
   let sizeLoading = false;
   let errorText = '';
   let showConfirm = false;
@@ -38,24 +40,27 @@
   $: count = videoNames.length;
   $: effectiveArtifact = artifact || null;
   $: if (count > 0) fetchSize(effectiveDataset, videoNames, effectiveArtifact);
-  $: if (count === 0) { sizeText = ''; errorText = ''; }
+  $: if (count === 0) { sizeText = ''; sizeBytes = 0; errorText = ''; }
 
   async function fetchSize(ds, names, art) {
     sizeLoading = true;
     sizeText = '';
+    sizeBytes = 0;
     errorText = '';
     try {
       const { total_bytes } = await fetchDownloadSize(ds, names, art);
+      sizeBytes = total_bytes;
       sizeText = humanFilesize(total_bytes);
     } catch {
       sizeText = '';
+      sizeBytes = 0;
     }
     sizeLoading = false;
   }
 
   function onClick() {
     if (count === 0 || $status) return;
-    if (count > CONFIRM_THRESHOLD) {
+    if (count > CONFIRM_COUNT || sizeBytes > CONFIRM_BYTES) {
       showConfirm = true;
     } else {
       doDownload();

@@ -9,7 +9,8 @@
   import { pearsonCorrelation } from '../../lib/stats.js';
   import { fieldLabel } from '../../lib/fields.js';
   import { tipPos } from '../../lib/format.js';
-  import { hoveredFields } from '../../lib/stores.js';
+  import { hoveredFields, hoveredItem } from '../../lib/stores.js';
+  import { getNestedValue } from '../../lib/sort.js';
 
   export let fields = [];
   export let fieldsB = null;
@@ -38,6 +39,30 @@
   const PAD_LEFT = 150;
   const PAD_RIGHT = 150;
   const PAD_TOP = 150;
+  const DOT_PAD = 2;  // matches drawScatter pad
+  const DOT_RADIUS = 3;
+
+  /**
+   * Map a raw value to a pixel position within a CELL, matching drawScatter's normalization.
+   * Pure function.
+   *
+   * @param {number} val - the value to position
+   * @param {number[]} allValues - all values in the field (for min/max)
+   * @param {boolean} isY - true for Y axis (inverted), false for X axis
+   * @returns {number} pixel offset within the cell
+   *
+   * >>> // Conceptually: value at midpoint of range → middle of cell
+   */
+  function valToCell(val, allValues, isY) {
+    const vals = maybeLog(allValues);
+    const v = (useLog && val > 0) ? Math.log10(val) : val;
+    const mn = Math.min(...vals);
+    const mx = Math.max(...vals);
+    const range = mx - mn || 1;
+    const drawSize = CELL - DOT_PAD * 2;
+    const frac = (v - mn) / range;
+    return isY ? (CELL - DOT_PAD - frac * drawSize) : (DOT_PAD + frac * drawSize);
+  }
 
   $: n = fields.length;
   $: totalW = PAD_LEFT + n * CELL + PAD_RIGHT;
@@ -188,6 +213,44 @@
         ctx.fillText(fieldLabel(fields[hoverRow].key), PAD_LEFT - 4, PAD_TOP + hoverRow * CELL + CELL / 2);
       }
     }
+
+    // Hovered video item dot overlay — white dots/lines showing where this item falls
+    if (hoveredVals) {
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 1;
+      for (let row = 0; row < n; row++) {
+        const rKey = fields[row].key;
+        const rVal = hoveredVals[rKey];
+        if (rVal === undefined) continue;
+        for (let col = 0; col < n; col++) {
+          const ox = PAD_LEFT + col * CELL;
+          const oy = PAD_TOP + row * CELL;
+          if (row === col) {
+            // Diagonal: vertical indicator line on histogram
+            const px = ox + valToCell(rVal, fields[row].values, false);
+            ctx.save();
+            ctx.setLineDash([2, 2]);
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(px, oy); ctx.lineTo(px, oy + CELL);
+            ctx.stroke();
+            ctx.restore();
+            continue;
+          }
+          const cKey = fields[col].key;
+          const cVal = hoveredVals[cKey];
+          if (cVal === undefined) continue;
+          const px = ox + valToCell(cVal, fields[col].values, false);
+          const py = oy + valToCell(rVal, fields[row].values, true);
+          ctx.beginPath();
+          ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+    }
   }
 
   // Reset stale hover indices when fields change
@@ -209,6 +272,18 @@
   });
   onDestroy(() => { if (observer) observer.disconnect(); });
   $: if (outerEl && observer) { observer.disconnect(); observer.observe(outerEl); }
+
+  // React to hovered video item — extract field values for dot overlay
+  $: hoveredVals = (() => {
+    if (!$hoveredItem || n === 0) return null;
+    const vals = {};
+    for (const f of fields) {
+      const v = getNestedValue($hoveredItem, f.key);
+      if (v !== null && v !== undefined && !isNaN(Number(v))) vals[f.key] = Number(v);
+    }
+    return Object.keys(vals).length > 0 ? vals : null;
+  })();
+  $: if (hoveredVals !== undefined && cacheCanvas) compositeFrame();
 
   // React to external hoveredFields changes (from field bars, histograms)
   $: {

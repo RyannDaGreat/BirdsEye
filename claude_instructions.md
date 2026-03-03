@@ -732,7 +732,7 @@ Components in `frontend/src/components/`:
 - `VideoGrid.svelte` — paginated grid of video cards
 - `VideoCard.svelte` — thumbnail + sprite hover + favorite heart
 - `DetailPanel.svelte` — inline video detail with metadata, video playback
-- `FilterPanel.svelte` — histogram filters + ternary filters
+- `FilterPanel.svelte` — two-column layout: fixed 70px sidebar (Log/Lin toggle, Log Y, Thumb, Fav controls) + dotted vertical separator + histogram grid
 - `StatsPanel.svelte` — dataset statistics display (three resizable columns)
 - `ExportModal.svelte` — export modal: Names/Paths × Lines/JSON with artifact dropdown + download
 - `StatusBar.svelte` — bottom status bar
@@ -769,6 +769,9 @@ Libraries in `frontend/src/lib/`:
 In `frontend/src/app.css`:
 - `.separator` and `.separator.dotted` — horizontal separators. Dotted separator uses negative margins to extend past column padding so it touches edges.
 - `.mouse-tip` — shared mouse-following tooltip class (used by field bars in stats panel instead of Popover).
+- `.col-header` — flex row for column headers (Log/Lin toggle + section label).
+- `.section-label` — uppercase accent-colored tiny label (used in StatsPanel columns and FilterPanel sidebar).
+- `.log-toggle` / `.log-toggle.active` — tiny Log/Lin toggle button (shared by StatsPanel SPLOM/WordFreq columns and FilterPanel sidebar).
 - `::-webkit-scrollbar` height set to `var(--space-md)` for horizontal scrollbar sizing.
 
 ### Everything Else

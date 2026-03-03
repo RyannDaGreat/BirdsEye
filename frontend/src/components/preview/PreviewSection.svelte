@@ -28,7 +28,7 @@
     display: flex; align-items: center; gap: var(--space-xs);
     background: none; border: none; cursor: pointer;
     font-family: var(--font); font-size: var(--font-size-xs);
-    color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-dim); text-transform: uppercase; letter-spacing: var(--letter-spacing-sm);
     padding: var(--space-xs) 0; width: 100%;
   }
   .section-header:hover { color: var(--accent); }

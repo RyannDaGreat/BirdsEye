@@ -180,7 +180,7 @@
         <div class="col-header">
           <button class="log-toggle" class:active={splomLog} on:click={() => { splomLog = !splomLog; }}
                   title={splomLog ? 'Switch to linear scale' : 'Switch to log\u2081\u2080 scale'}>
-            {splomLog ? 'Log' : 'Lin'}
+            <iconify-icon icon="mdi:chart-line" inline></iconify-icon> {splomLog ? 'Log' : 'Lin'}
           </button>
           <div class="section-label">Scatterplot Matrix</div>
         </div>
@@ -196,7 +196,7 @@
         <div class="col-header">
           <button class="log-toggle" class:active={wordsLog} on:click={() => { wordsLog = !wordsLog; }}
                   title={wordsLog ? 'Switch to linear scale' : 'Switch to log\u2081\u2080 scale'}>
-            {wordsLog ? 'Log' : 'Lin'}
+            <iconify-icon icon="mdi:chart-line" inline></iconify-icon> {wordsLog ? 'Log' : 'Lin'}
           </button>
           <div class="section-label">Word Frequency</div>
         </div>
@@ -230,27 +230,14 @@
     flex-shrink: 0;
     display: flex; flex-direction: column; gap: var(--space-xs);
   }
-  .section-label {
-    font-size: var(--font-size-xxs); text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--accent); flex-shrink: 0;
-  }
+  /* .section-label — shared in app.css */
   /* Separator extends full width past column padding, with breathing room below */
   .analysis-col .separator {
     margin-left: calc(-1 * var(--space-md));
     margin-right: calc(-1 * var(--space-md));
     margin-bottom: var(--space-sm);
   }
-  .col-header {
-    display: flex; align-items: center; gap: var(--space-sm);
-    flex-shrink: 0;
-  }
-  .log-toggle {
-    background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text-dim); font-family: var(--font); font-size: var(--font-size-xxs);
-    padding: 0 var(--space-sm); border-radius: var(--radius-xs);
-    cursor: pointer; line-height: 1.5;
-  }
-  .log-toggle.active { color: var(--accent); border-color: var(--accent); }
+  /* .col-header, .log-toggle — shared in app.css */
   .fields-header {
     display: flex; align-items: center; justify-content: space-between;
   }
@@ -259,7 +246,7 @@
     background: none; border: 1px solid var(--border); color: var(--text-dim);
     font-family: var(--font); font-size: var(--font-size-xxs);
     padding: 0 var(--space-sm); border-radius: var(--radius-xs);
-    cursor: pointer; line-height: 1.5;
+    cursor: pointer; line-height: var(--line-height);
   }
   .field-action:hover { color: var(--accent); border-color: var(--accent); }
   .hint { text-transform: none; letter-spacing: 0; opacity: 0.5; }

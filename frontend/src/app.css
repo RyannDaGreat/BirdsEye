@@ -1,6 +1,15 @@
 /* === Global CSS — shared custom properties and base resets === */
 /* ALL numeric values come from vars. No magic numbers in components. */
 
+/* Futura font (Medium, Medium Italic, Bold, Condensed faces bundled in .ttc) */
+@font-face {
+  font-family: 'Futura';
+  src: url('./assets/fonts/Futura.ttc') format('collection');
+  font-weight: 100 900;
+  font-style: normal italic;
+  font-display: swap;
+}
+
 :root {
   /* Colors */
   --bg: #0f0f0f;
@@ -16,13 +25,15 @@
   --success: #4ecdc4;
 
   /* Typography */
-  --font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  /* --font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; */
+  --font: 'Futura', 'SF Mono', 'Fira Code', 'Cascadia Code', sans-serif;
   --font-size-base: 13px;
   --font-size-control: 12px;
   --font-size-small: 11px;
   --font-size-xs: 10px;
   --font-size-xxs: 9px;
   --line-height: 1.5;
+  --letter-spacing-sm: 0.5px;
 
   /* Spacing */
   --space-xs: 2px;
@@ -41,6 +52,8 @@
   --chart-height: 36px;
   --spinner-size: 18px;
   --select-check-size: 22px;
+  --filter-sidebar-width: var(--log-toggle-width);
+  --log-toggle-width: 50px;
 
   /* Resize handles */
   --resize-handle-size: 5px;
@@ -153,7 +166,7 @@ body {
   color: var(--text-dim);
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--letter-spacing-sm);
 }
 
 /* === Shared inline form groups === */
@@ -265,6 +278,25 @@ iconify-icon { font-size: calc(1em * var(--icon-scale)); vertical-align: var(--i
   color: var(--text); font-size: var(--font-size-base); line-height: var(--line-height);
 }
 .modal-body .dim { color: var(--text-dim); }
+
+/* === Shared column header + section label (StatsPanel, FilterPanel) === */
+.col-header {
+  display: flex; align-items: center; gap: var(--space-sm);
+  flex-shrink: 0;
+}
+.section-label {
+  font-size: var(--font-size-xxs); text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-sm); color: var(--accent); flex-shrink: 0;
+}
+.log-toggle {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text-dim); font-family: var(--font); font-size: var(--font-size-xxs);
+  padding: 0 var(--space-sm); border-radius: var(--radius-xs);
+  cursor: pointer; line-height: var(--line-height);
+  width: var(--log-toggle-width); flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: space-between;
+}
+.log-toggle.active { color: var(--accent); border-color: var(--accent); }
 
 /* === Spinner === */
 @keyframes spin { to { transform: rotate(360deg); } }
